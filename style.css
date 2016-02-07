@@ -1,0 +1,232 @@
+#command_ {
+	position: fixed;
+	display: none;
+	height: 100%;
+	width: 100%;
+	background-color: white;
+	z-index: 2;
+	top: 0px;
+}
+#command_prompt_top{
+	height:28px;
+}
+.command_prompt_col1 {
+	width: 15%;
+}
+
+.command_prompt_col2 {
+	width: 70%;
+}
+
+.command_prompt_col3 {
+	width: 15%;
+}
+
+#command_command_box {
+	color: purple;
+	height: 200px;
+	overflow: auto;
+	left: 100px;
+}
+
+#command_reply_box {
+	height: 200px;
+	overflow: auto;
+}
+
+.table_of_contents {
+	position: fixed;
+	background-color:white;
+	height:100%;
+}
+.contents {
+	margin-left: 250px;
+}
+.stream_list_col0{
+	width:50px;
+}
+.stream_list_col1{
+	width:100px;
+}
+.stream_list_col2{
+	width:100px;
+}
+.stream_list_col3{
+	width:200px;
+}
+#stream_list_box{
+	height:300px;
+	width:476px;
+	overflow:auto;
+	border-color:black;
+	border-style:solid;
+	border-width:1px;
+}
+#ORlist_box{
+	width:800px;
+	height:400px;
+	overflow:auto;
+	border-color:black;
+	border-style:solid;
+	border-width:1px;
+}
+#ORlist_header{
+	width:1780px;
+}
+#ORlist{
+	width:1780px;
+	overflow:auto;
+}
+.ORlist_col0{
+	width:200px;
+}
+.ORlist_col1{
+	width:320px;
+}
+.ORlist_col2{
+	width:320px;
+}
+.ORlist_col3{
+	width:200px;
+}
+.ORlist_col4{
+	width:75px;
+}
+.ORlist_col5{
+	width:150px;
+}
+.ORlist_col6{
+	width:70px;
+}
+.ORlist_col7{
+	width:70px;
+}
+.ORlist_col8{
+	width:200px;
+}
+.ORlist_col9{
+	width:200px;
+}
+.ORlist_col10{
+	width:70px;
+}
+.ORlist_col11{
+	width:100px;
+}
+.ORlist_col12{
+	width:75px;
+}
+#bandwidth_graph {
+	width: 712px;
+	height: 436px;
+}
+
+#upload_path {
+	stroke: red;
+}
+
+#download_path {
+	stroke: blue;
+}
+
+#upload_path, #download_path {
+	stroke-width: 1px;
+	fill: none;
+}
+
+.bandwidth_graph_cover {
+	stroke-width: 0px;
+	fill: white;
+}
+
+.bandwidth_graph_reference_line {
+	stroke: gray;
+	stroke-width: 1px;
+}
+
+.bandwidth_graph_label {
+	fill: black;
+}
+
+.bandwidth_graph_frame {
+	stroke-width: 1px;
+	stroke: black;
+	fill: none;
+}
+
+.bandwidth_graph_current_download_rate {
+	fill: blue;
+}
+
+.bandwidth_graph_current_upload_rate {
+	fill: red;
+}
+
+#messages_table_header {
+}
+
+#messages_table_box {
+	height: 500px;
+	width:788px;
+	overflow: auto;
+	border-width: 1px;
+	border-style: solid;
+	border-color: black;
+}
+
+.messages_table_col1 {
+	width: 190px;
+}
+
+.messages_table_col2 {
+	width: 78px;
+}
+
+.messages_table_col3 {
+	width: 500px;
+}
+
+#custom_command_console {
+	height: 480px;
+	width: 640px;
+	overflow-y: auto;
+	border-width: 1px;
+	border-style: solid;
+	border-color: black;
+}
+
+.console_input {
+	color: purple;
+}
+
+.console_output {
+	color: black;
+}
+
+#custom_command_input_box {
+	width: 640px;
+}
+
+.tor_option_hide_description {
+	display: none;
+}
+
+.tor_option_description_block {
+	display: none;
+}
+
+.tor_option_description {
+	margin-left: 4%;
+}
+
+.tor_option_description_indented {
+	margin-left: 10%;
+}
+
+.tor_option_description_indented2 {
+	margin-left: 16%;
+}
+
+.tor_option_description_indented3 {
+	margin-left: 22%;
+}
