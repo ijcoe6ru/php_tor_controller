@@ -3328,7 +3328,7 @@ switch ($tc_connection_auth) {
 			bandwidth_graph_px_per_ms=0.01,
 			bandwidth_graph_x_numbers,
 			bandwidth_graph_y_numbers,
-			custom_command_url='<?=path_http?>?session=<?=$sessionid?>',//url for custom command
+			custom_command_url='<?=path_http?>',//url for custom command
 			message_event_names=['DEBUG','INFO','NOTICE','WARN','ERR'],
 			messages_by_severity=[null,null,null,null,null],
 			messages_hide=0,//each bit means whether to display messages of the severity
