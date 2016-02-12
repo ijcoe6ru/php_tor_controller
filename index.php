@@ -17,8 +17,7 @@ define ( 'tc_connection_auth_password', 1 );
 define ( 'tc_connection_auth_cookie', 2 );
 define ( 'tc_max_result_length', 8192 );
 define ( 'tor_options_number', 296 );
-define ( 'get_events_interval', 1000 ); // interval to get asynchronous events and bootstrap progress in miliseconds
-define ( 'get_OR_status_interval', 60 ); // interval to get OR status in get_events_interval miliseconds
+define ( 'get_events_interval', 2000 ); // interval to get asynchronous events and bootstrap progress in miliseconds
 function get_reply() {
 	global $tc;
 	$result = '';
@@ -3045,6 +3044,7 @@ if ($tc) {
 						*	d: update number of ORs
 						*	e: update stream status
 						*	f: update number of streams
+						*	g: update "g" in post header
 						*	digit: a milisecond timestamp followed by a log message
 						*/
 						
@@ -3074,12 +3074,13 @@ if ($tc) {
 						}
 						echo "\r\nf$stream_num\r\n";
 						
-						if (isset ( $_GET ['get_or_status'] )) {
-							// to reset OR list in browser
-							echo "c";
-							
-							fwrite ( $tc, "getinfo ns/all\r\n" );
-							if (substr ( $result = get_reply (), 0, 13 ) == "250+ns/all=\r\n") {
+						fwrite ( $tc, "getinfo ns/all\r\n" );
+						if (substr ( $result = get_reply (), 0, 13 ) == "250+ns/all=\r\n") {
+							// If reply is same as reply of last time, no OR list should be sent.
+							$result_escape = str_replace ( "\r\n", '', $result );
+							if (! isset ( $_POST ['g'] ) || $_POST ['g'] != $result_escape) {
+								echo "g$result_escape\r\nc";
+								
 								$ORnum = 0;
 								
 								// to skip "250+ns/all=\r\n"
@@ -3142,8 +3143,8 @@ if ($tc) {
 													5 => $ip, // IP
 													6 => $result [6], // ORPort
 													7 => $result [7] 
-											) // DirPort
-;
+											); // DirPort
+											
 											break;
 										
 										// IPv6 address
@@ -3176,10 +3177,11 @@ if ($tc) {
 											break;
 									}
 								}
-							} else
-								echo "\r\n";
-						}
-						get_event_finish_OR_list:
+							}
+						} else
+							echo "c\r\ng\r\nd0\r\n";
+						
+						get_event_finish_OR_list://goto end;
 						
 						// We assume the difference between the time spent on 2 connections is less than get_events_interval/2 miliseconds.
 						// $_GET['timea'] is the the milisecond timestamp since which asynchronous events should be recorded
@@ -3385,8 +3387,9 @@ foreach ( $tor_options_name as $b ) {
 			],
 			tor_options_value,//the input elements for each value
 			tor_options_default,//the checkboxex for whether to use default value
-			ORlist_jquery,
-			get_or_status_count=0;
+			stream_list_data='',
+			OR_list_data='',
+			get_event_g='';
 		
 			function custom_command_handle_key(event) {
 				var key = event.which || event.keyCode, new_custom_command_input, new_custom_command_output;
@@ -3494,17 +3497,21 @@ foreach ( $tor_options_name as $b ) {
 			}
 
 			function events_handle(data) {
-				var row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null;
-				while (data) {
+				var row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null, offset=0;
+				while ((a=data.indexOf('\r',offset))!=-1) {
 					// reply format is <milisecond timestamp> space <event name> <message>
-					a = data.indexOf('\r');
-					row = data.substr(0, a);
-					data = data.substr(a + 2);
+					row = data.substr(offset, a - offset);
+					offset=a+2;
 
 					/*
-					 * first character of each row: a: set timea b: update bootstrap
-					 * progress c: update OR list d: update number of ORs e: update streams
-					 * list f: update number of streams digit: a milisecond timestamp
+					 * first character of each row:
+					 *	a: set timea
+					 *	b: update bootstrap progress
+					 *	c: update OR list
+					 *	d: update number of ORs
+					 *	e: update streams list
+					 *	f: update number of streams digit: a milisecond timestamp
+					 *	g: update "g" in post header, which is the reply of "getinfo ns/all" without line breaks
 					 * followed by a log message
 					 */
 					switch (row[0]) {
@@ -3520,7 +3527,11 @@ foreach ( $tor_options_name as $b ) {
 
 					// If row begins with "c", update OR list.
 					case 'c':
-						ORlist.innerHTML = row.substr(1);
+						row=row.substr(1);
+						if(row!=OR_list_data){
+							OR_list_data=row;
+							ORlist.innerHTML=OR_list_data;
+						}
 						break;
 
 					// If row begins with "d", update number of ORs
@@ -3530,13 +3541,21 @@ foreach ( $tor_options_name as $b ) {
 
 					// If row begins with "e", update stream list.
 					case 'e':
-						console.log(row);
-						streams_list.innerHTML = row.substr(1);
+						row=row.substr(1);
+						if(row!=stream_list_data){
+							stream_list_data=row;
+							streams_list.innerHTML=stream_list_data;
+						}
 						break;
 
 					// If row begins with "f", update number of streams.
 					case 'f':
 						stream_number.innerHTML = row.substr(1);
+						break;
+
+					//If row begins with "g", update get_event_g.
+					case "g":
+						get_event_g = row.substr(1);
 						break;
 
 					// log message
@@ -4113,9 +4132,8 @@ foreach ( $tor_options_name as $a => $b ) {
 		setInterval(
 				function()
 				{
-					$.get((get_or_status_count?get_event_url:get_event_url_or_status)+String(get_events_timea),events_handle);
+					$.post(get_event_url+String(get_events_timea),{'g':get_event_g},events_handle);
 					get_events_timea+=<?=get_events_interval?>;
-					get_or_status_count=(get_or_status_count+1)%<?=get_OR_status_interval?>;
 				},<?=get_events_interval?>);
 	
 		tor_options_value=$('.tor_options_value');
