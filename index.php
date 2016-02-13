@@ -3264,15 +3264,15 @@ if ($tc) {
 						$tor_options_value [$a] = false;
 				}
 			} else {
-				$error_message .= '<p>
+				$error_message .= "<p>
 							Authentication failed
 						</p>
 						<p>
 							$result
 						</p>
 						<p>
-							<a href="#connecting_to_tor">go to settings for connecting to tor</a>
-						</p>';
+							<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
+						</p>";
 			}
 		}
 	} else {
@@ -3282,7 +3282,7 @@ if ($tc) {
 } else {
 	if ($action !== '')
 		exit ();
-	$error_message .= '<p>
+	$error_message .= "<p>
 				Failed to connect to tor control.
 			</p>
 			<p>
@@ -3292,8 +3292,8 @@ if ($tc) {
 				$errno $errstr
 			</p>
 			<p>
-				<a href="#connecting_to_tor">go to settings for connecting to tor</a>
-			</p>';
+				<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
+			</p>";
 }
 
 // to set the variables for the "Connecting to Tor" section
