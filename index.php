@@ -39,6 +39,7 @@ function get_reply() {
 	}
 }
 function close_tc() {
+	global $tc;
 	fwrite ( $tc, "quit\r\n" );
 	get_reply ();
 }
