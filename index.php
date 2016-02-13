@@ -3204,7 +3204,7 @@ if ($tc) {
 								goto end;
 							}
 							
-							fwrite ( $tc, "setevents bw debug info notice warn err\r\n" );
+							fwrite ( $tc, "setevents bw info notice warn err\r\n" );
 							$result = get_reply ();
 							$result = substr ( $result, 8 );
 							
@@ -3333,10 +3333,9 @@ switch ($tc_connection_auth) {
 			bandwidth_graph_x_numbers,
 			bandwidth_graph_y_numbers,
 			custom_command_url='<?=path_http?>',//url for custom command
-			message_event_names=['DEBUG','INFO','NOTICE','WARN','ERR'],
+			message_event_names=['INFO','NOTICE','WARN','ERR'],
 			messages_by_severity=[null,null,null,null,null],
-			messages_hide=3,//each bit means whether to display messages of the severity
-			//By default, debug and info are hidden. Because there are so many of debug and info, displaying them may cause the browser take up a lot of CPU resource.
+			messages_hide=1,//each bit means whether to display messages of the severity
 			get_event_url='<?=path_http?>?action=get_event&timea=',
 			get_events_timea=0,
 			tor_options_categories=[
@@ -3623,7 +3622,7 @@ foreach ( $tor_options_name as $b ) {
 										break;
 									}
 									d++;
-								} while (d < 5);
+								} while (d < 4);
 							}
 					}
 					offset = row_end + 1;
@@ -3823,20 +3822,17 @@ foreach ( $tor_options_name as $b ) {
 		<h2>Message Log</h2>
 		show severities:
 		<input type="checkbox" id="messages_severity_0"
-			onchange="update_messages_display(0,this.checked);">
-		<label for="messages_severity_0">debug</label>
-		<input type="checkbox" id="messages_severity_1"
 			onchange="update_messages_display(1,this.checked);">
-		<label for="messages_severity_1">info</label>
-		<input type="checkbox" id="messages_severity_2"
+		<label for="messages_severity_1">INFO</label>
+		<input type="checkbox" id="messages_severity_1"
 			onchange="update_messages_display(2,this.checked);" checked>
-		<label for="messages_severity_2">notice</label>
-		<input type="checkbox" id="messages_severity_3"
+		<label for="messages_severity_2">NOTICE</label>
+		<input type="checkbox" id="messages_severity_2"
 			onchange="update_messages_display(3,this.checked);" checked>
-		<label for="messages_severity_3">warn</label>
-		<input type="checkbox" id="messages_severity_4"
+		<label for="messages_severity_3">WARN</label>
+		<input type="checkbox" id="messages_severity_3"
 			onchange="update_messages_display(4,this.checked);" checked>
-		<label for="messages_severity_4">err</label>
+		<label for="messages_severity_4">ERR</label>
 		<br>
 		<button type="button"
 			onclick=
