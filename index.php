@@ -21,14 +21,17 @@ define ( 'get_events_interval', 2000 ); // interval to get asynchronous events a
 function get_reply() {
 	global $tc;
 	$result = '';
+	$line_noend = 0;
 	while ( 1 ) {
 		$result_a = fread ( $tc, tc_max_result_length );
 		$result .= $result_a;
-		foreach ( explode ( "\r\n", $result_a ) as $line ) {
-			if (substr ( $line, 3, 1 ) == ' ') {
-				if (filter_var ( substr ( $line, 0, 3 ), FILTER_VALIDATE_INT ) !== false)
-					return $result;
-			}
+		$lines = explode ( "\r\n", $result_a );
+		if ($line_noend)
+			unset ( $lines [0] );
+		$line_noend = substr ( $result_a, - 2 ) !== "\r\n";
+		foreach ( $lines as $line ) {
+			if ((substr ( $line, 3, 1 ) === ' ') && (filter_var ( substr ( $line, 0, 3 ), FILTER_VALIDATE_INT ) !== false))
+				return $result;
 		}
 	}
 }
@@ -3037,22 +3040,24 @@ if ($tc) {
 						goto end;
 					case 'get_event' :
 						/*
-						*first character of each row:
-						*	a: set timea
-						*	b: update bootstrap progress
-						*	c: update OR list
-						*	d: update number of ORs
-						*	e: update stream status
-						*	f: update number of streams
-						*	g: update "g" in post header
-						*	digit: a milisecond timestamp followed by a log message
-						*/
+						 *first character of each row:
+						 *	a: set timea
+						 *	b: update bootstrap progress
+						 *	c: update OR list
+						 *	d: update number of ORs
+						 *	e: update stream status
+						 *	f: update number of streams
+						 *	g: update "g" in post header
+						 *	h: a milisecond timestamp followed by a log message
+						 *
+						 *line breaks are "\n"
+						 */
 						
 						//to get bootstrap progress
 						fwrite ( $tc, "getinfo status/bootstrap-phase\r\n" );
 						
 						// to skip "250-status/bootstrap-phase=NOTICE " and next line "250 OK"
-						echo 'b', strstr ( substr ( get_reply (), 34 ), "\r", 1 ), "\r\n";
+						echo 'b', strstr ( substr ( get_reply (), 34 ), "\r", 1 ), "\n";
 						
 						// to get stream status
 						fwrite ( $tc, "getinfo stream-status\r\n" );
@@ -3072,19 +3077,19 @@ if ($tc) {
 								$stream_num ++;
 							}
 						}
-						echo "\r\nf$stream_num\r\n";
+						echo "\nf$stream_num\n";
 						
+						$ORnum=0;
 						fwrite ( $tc, "getinfo ns/all\r\n" );
-						if (substr ( $result = get_reply (), 0, 13 ) == "250+ns/all=\r\n") {
-							// If reply is same as reply of last time, no OR list should be sent.
-							$result_escape = str_replace ( "\r\n", '', $result );
-							if (! isset ( $_POST ['g'] ) || $_POST ['g'] != $result_escape) {
-								echo "g$result_escape\r\nc";
-								
-								$ORnum = 0;
-								
+						$result_ns=get_reply();
+						// If reply is same as reply of last time, no OR list should be sent.
+						$result_ns_escape = str_replace ( "\r\n", '', $result_ns );
+						if ((! isset ( $_POST ['g'] )) || ($_POST ['g'] !== $result_ns_escape)) {
+							echo "g$result_ns_escape\nc";
+							
+							if (substr ( $result_ns, 0, 13 ) == "250+ns/all=\r\n") {
 								// to skip "250+ns/all=\r\n"
-								foreach ( explode ( "\r\n", substr ( $result, 13 ) ) as $a ) {
+								foreach ( explode ( "\r\n", substr ( $result_ns, 13 ) ) as $a ) {
 									/*
 									 * For each OR, print one html tr.
 									 * The columns are:
@@ -3112,7 +3117,7 @@ if ($tc) {
 														echo $ORentry [$b];
 													echo '</td>';
 												}
-												echo "</tr>\r\nd$ORnum\r\n";
+												echo "</tr>";
 											}
 											goto get_event_finish_OR_list;
 										case 'r' :
@@ -3178,12 +3183,12 @@ if ($tc) {
 									}
 								}
 							}
-						} else
-							echo "c\r\ng\r\nd0\r\n";
+							
+							get_event_finish_OR_list:
+								echo "\nd$ORnum\n";
+						}
 						
-						get_event_finish_OR_list://goto end;
-						
-						// We assume the difference between the time spent on 2 connections is less than get_events_interval/2 miliseconds.
+						// We assume the difference between the time spent on 2 connections is less than get_events_interval/4 miliseconds.
 						// $_GET['timea'] is the the milisecond timestamp since which asynchronous events should be recorded
 						$time = microtime ( 1 );
 						$time_ms = ( int ) ($time * 1000);
@@ -3194,8 +3199,8 @@ if ($tc) {
 							
 							// If $get_events_time is not in the correct range (it is initially 0), set it to the correct range.
 							if ($get_events_time < $time || $get_events_time > $time + get_events_interval / 1000) {
-								$timea = $time_ms + get_events_interval * 1.5;
-								echo 'a', $timea, "\r\n";
+								$timea = $time_ms + get_events_interval * 1.25;
+								echo "a$timea\n";
 								goto end;
 							}
 							
@@ -3206,24 +3211,21 @@ if ($tc) {
 							while ( microtime ( 1 ) < $get_events_time )
 								$result = get_reply ();
 								
-								// now, $get_events_time is time to stop recording events
+							// now, $get_events_time is time to stop recording events
 							$get_events_time += get_events_interval / 1000;
-							$output = '';
 							while ( ($time = microtime ( 1 )) < $get_events_time ) {
 								$time_ms = ( int ) ($time * 1000);
-								while ( $result ) {
-									// each row of reply is prepended with the milisecond timestamp
-									$output .= $time_ms . ' ';
-									$a = strpos ( $result, "\r" );
-									$output .= substr ( $result, 0, $a + 2 );
-									$result = substr ( $result, $a + 2 );
+								foreach(explode("\r\n",$result) as $line) {
+									if(($line=='')||($line=='.'))
+										break;
+									// Each row of reply is prepended with the milisecond timestamp.
+									echo "h$time_ms $line\n";
 								}
 								$result = get_reply ();
 							}
-							echo $output;
 						} else {
-							$timea = $time_ms + get_events_interval * 1.5;
-							echo 't', $timea, "\r\n";
+							$timea = $time_ms + get_events_interval * 1.25;
+							echo "a$time\n";
 						}
 						goto end;
 				}
@@ -3333,10 +3335,9 @@ switch ($tc_connection_auth) {
 			custom_command_url='<?=path_http?>',//url for custom command
 			message_event_names=['DEBUG','INFO','NOTICE','WARN','ERR'],
 			messages_by_severity=[null,null,null,null,null],
-			messages_hide=0,//each bit means whether to display messages of the severity
-			//because this page is requested from different hostnames, we pass the session id through the url
+			messages_hide=3,//each bit means whether to display messages of the severity
+			//By default, debug and info are hidden. Because there are so many of debug and info, displaying them may cause the browser take up a lot of CPU resource.
 			get_event_url='<?=path_http?>?action=get_event&timea=',
-			get_event_url_or_status='<?=path_http?>?action=get_event&get_or_status=1&timea=',
 			get_events_timea=0,
 			tor_options_categories=[
 <?php
@@ -3386,7 +3387,7 @@ foreach ( $tor_options_name as $b ) {
 ?>
 			],
 			tor_options_value,//the input elements for each value
-			tor_options_default,//the checkboxex for whether to use default value
+			tor_options_default,//the checkboxes for whether to use default value
 			stream_list_data='',
 			OR_list_data='',
 			get_event_g='';
@@ -3496,13 +3497,9 @@ foreach ( $tor_options_name as $b ) {
 				}
 			}
 
-			function events_handle(data) {
-				var row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null, offset=0;
-				while ((a=data.indexOf('\r',offset))!=-1) {
-					// reply format is <milisecond timestamp> space <event name> <message>
-					row = data.substr(offset, a - offset);
-					offset=a+2;
-
+			function events_handle(data) {console.log(data);
+				var row_end, row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null, offset=0;
+				while ((row_end=data.indexOf('\n',offset))!=-1) {
 					/*
 					 * first character of each row:
 					 *	a: set timea
@@ -3511,118 +3508,125 @@ foreach ( $tor_options_name as $b ) {
 					 *	d: update number of ORs
 					 *	e: update streams list
 					 *	f: update number of streams digit: a milisecond timestamp
-					 *	g: update "g" in post header, which is the reply of "getinfo ns/all" without line breaks
-					 * followed by a log message
+					 *	g: update "g" in post header, which is the reply of "getinfo ns/all" without line breaks followed by a log message
+					 *	h: milisecond timestamp followed by an asynchornous event
+					 *
+					 *line breaks are "\n"
 					 */
-					switch (row[0]) {
-					// If row begins with "a", set timea.
-					case 'a':
-						get_events_timea = Number(row.substr(1));
-						break;
 
-					// If row begins with "b", update bootstrap progress.
-					case 'b':
-						bootstrap_progress.textContent = row.substr(1);
-						break;
-
-					// If row begins with "c", update OR list.
-					case 'c':
-						row=row.substr(1);
-						if(row!=OR_list_data){
-							OR_list_data=row;
-							ORlist.innerHTML=OR_list_data;
-						}
-						break;
-
-					// If row begins with "d", update number of ORs
-					case 'd':
-						OR_number.textContent = row.substr(1);
-						break;
-
-					// If row begins with "e", update stream list.
-					case 'e':
-						row=row.substr(1);
-						if(row!=stream_list_data){
-							stream_list_data=row;
-							streams_list.innerHTML=stream_list_data;
-						}
-						break;
-
-					// If row begins with "f", update number of streams.
-					case 'f':
-						stream_number.innerHTML = row.substr(1);
-						break;
-
-					//If row begins with "g", update get_event_g.
-					case "g":
-						get_event_g = row.substr(1);
-						break;
-
-					// log message
-					default:
-						// seperate time
-						a = row.indexOf(' ');
-						time = Number(row.substr(0, a));
-
-						// seperate "650 "
-						row = row.substr(a + 5);
-
-						// seperate event name
-						a = row.indexOf(' ');
-						b = row.substr(0, a);
-						row = row.substr(a + 1);
-						if (b == 'BW') {
-							a = row.indexOf(' ');
-							download_rate = row.substr(0, a);
-							upload_rate = row.substr(a + 1);
-							bandwidth_graph_current_download_rate_number.innerHTML = download_rate;
-							bandwidth_graph_current_upload_rate_number.innerHTML = upload_rate;
-							download_rate = Number(download_rate);
-							upload_rate = Number(upload_rate);
-							bandwidth_last_node = {
-								download : download_rate,
-								upload : upload_rate,
-								time : time,
-								last : bandwidth_last_node
-							};
-							if (bandwidth_graph_max_rate < download_rate
-									|| bandwidth_graph_max_rate < upload_rate) {
-								while (bandwidth_graph_max_rate < download_rate)
-									bandwidth_graph_max_rate <<= 1;
-								while (bandwidth_graph_max_rate < upload_rate)
-									bandwidth_graph_max_rate <<= 1;
-								bandwidth_graph_y_numbers_update();
+					//to skip first character in the row
+					row = data.substr ( offset + 1, row_end - offset - 1 );
+					switch ( data[offset] ) {
+						// If row begins with "a", set timea.
+						case 'a':
+							get_events_timea = Number(row);
+							break;
+	
+						// If row begins with "b", update bootstrap progress.
+						case 'b':
+							bootstrap_progress.textContent = row;
+							break;
+	
+						// If row begins with "c", update OR list.
+						case 'c':
+							if(row!=OR_list_data){
+								OR_list_data=row;
+								ORlist.innerHTML=OR_list_data;
 							}
-						} else {
-							d = 0;
-							do {
-								if (b == message_event_names[d]) {
-									timea = new Date(time);
-									table_row = $('<tr></tr>');
-									c = $('<td class="messages_table_col1"></td>')[0];
-									c.textContent = timea.toLocaleString();
-									table_row.append(c);
-									c = $('<td class="messages_table_col2"></td>')[0];
-									c.textContent = b;
-									table_row.append(c);
-									c = $('<td class="messages_table_col3"></td>')[0];
-									c.textContent = row;
-									table_row.append(c);
-									table_row = table_row[0];
-									if (messages_hide & (1 << d))
-										table_row.style.display = 'none';
-									new_node = {
-										data : table_row,
-										last : messages_by_severity[d]
-									};
-									messages_by_severity[d] = new_node;
-									$('#messages_table_tbody').append(table_row);
-									break;
+							break;
+	
+						// If row begins with "d", update number of ORs
+						case 'd':
+							OR_number.textContent = row;
+							break;
+	
+						// If row begins with "e", update stream list.
+						case 'e':
+							if(row!=stream_list_data){
+								stream_list_data=row;
+								streams_list.innerHTML=stream_list_data;
+							}
+							break;
+	
+						// If row begins with "f", update number of streams.
+						case 'f':
+							stream_number.innerHTML = row;
+							break;
+	
+						//If row begins with "g", update get_event_g.
+						case 'g':
+							get_event_g = row;
+							break;
+	
+						// asynchronous event
+						case 'h':
+							// seperate time
+							a = row.indexOf(' ');
+							time = Number(row.substr(0, a));
+	
+							// seperate "650 "
+							row = row.substr(a + 5);
+	
+							// seperate event name
+							a = row.indexOf(' ');
+							b = row.substr(0, a);
+							row = row.substr(a + 1);
+							if (b == 'BW') {
+								a = row.indexOf(' ');
+								download_rate = row.substr(0, a);
+								upload_rate = row.substr(a + 1);
+								bandwidth_graph_current_download_rate_number.innerHTML = download_rate;
+								bandwidth_graph_current_upload_rate_number.innerHTML = upload_rate;
+								download_rate = Number(download_rate);
+								upload_rate = Number(upload_rate);
+								bandwidth_last_node = {
+									download : download_rate,
+									upload : upload_rate,
+									time : time,
+									last : bandwidth_last_node
+								};
+								if (bandwidth_graph_max_rate < download_rate
+										|| bandwidth_graph_max_rate < upload_rate) {
+									while (bandwidth_graph_max_rate < download_rate)
+										bandwidth_graph_max_rate <<= 1;
+									while (bandwidth_graph_max_rate < upload_rate)
+										bandwidth_graph_max_rate <<= 1;
+									bandwidth_graph_y_numbers_update();
 								}
-								d++;
-							} while (d < 5);
-						}
+							}
+
+							// If the event name is not "BW", it is a log message.
+							else {return;
+								d = 0;
+								do {
+									if (b == message_event_names[d]) {
+										timea = new Date(time);
+										table_row = $('<tr></tr>');
+										c = $('<td class="messages_table_col1"></td>')[0];
+										c.textContent = timea.toLocaleString();
+										table_row.append(c);
+										c = $('<td class="messages_table_col2"></td>')[0];
+										c.textContent = b;
+										table_row.append(c);
+										c = $('<td class="messages_table_col3"></td>')[0];
+										c.textContent = row;
+										table_row.append(c);
+										table_row = table_row[0];
+										if (messages_hide & (1 << d))
+											table_row.style.display = 'none';
+										new_node = {
+											data : table_row,
+											last : messages_by_severity[d]
+										};
+										messages_by_severity[d] = new_node;
+										$('#messages_table_tbody').append(table_row);
+										break;
+									}
+									d++;
+								} while (d < 5);
+							}
 					}
+					offset = row_end + 1;
 				}
 			}
 			function tor_options_change_category(category) {
@@ -3819,10 +3823,10 @@ foreach ( $tor_options_name as $b ) {
 		<h2>Message Log</h2>
 		show severities:
 		<input type="checkbox" id="messages_severity_0"
-			onchange="update_messages_display(0,this.checked);" checked>
+			onchange="update_messages_display(0,this.checked);">
 		<label for="messages_severity_0">debug</label>
 		<input type="checkbox" id="messages_severity_1"
-			onchange="update_messages_display(1,this.checked);" checked>
+			onchange="update_messages_display(1,this.checked);">
 		<label for="messages_severity_1">info</label>
 		<input type="checkbox" id="messages_severity_2"
 			onchange="update_messages_display(2,this.checked);" checked>
