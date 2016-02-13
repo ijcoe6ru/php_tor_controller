@@ -38,6 +38,10 @@ function get_reply() {
 			$line_noend = 1;
 	}
 }
+function close_tc() {
+	fwrite ( $tc, "quit\r\n" );
+	get_reply ();
+}
 function is_invalid_var($var, $min, $max) {
 	return (! isset ( $var )) || (filter_var ( $var, FILTER_VALIDATE_INT ) === false) || $var < $min || $var > $max;
 }
@@ -3040,7 +3044,8 @@ if ($tc) {
 							header ( 'Content-type: text/plain' );
 							echo $result;
 						}
-						goto end;
+						close_tc ();
+						exit ();
 					case 'get_event' :
 						/*
 						 *first character of each row:
@@ -3082,9 +3087,9 @@ if ($tc) {
 						}
 						echo "\nf$stream_num\n";
 						
-						$ORnum=0;
+						$ORnum = 0;
 						fwrite ( $tc, "getinfo ns/all\r\n" );
-						$result_ns=get_reply();
+						$result_ns = get_reply ();
 						// If reply is same as reply of last time, no OR list should be sent.
 						$result_ns_escape = str_replace ( "\r\n", '', $result_ns );
 						if ((! isset ( $_POST ['g'] )) || ($_POST ['g'] !== $result_ns_escape)) {
@@ -3188,7 +3193,7 @@ if ($tc) {
 							}
 							
 							get_event_finish_OR_list:
-								echo "\nd$ORnum\n";
+							echo "\nd$ORnum\n";
 						}
 						
 						// We assume the difference between the time spent on 2 connections is less than get_events_interval/4 miliseconds.
@@ -3204,7 +3209,8 @@ if ($tc) {
 							if ($get_events_time < $time || $get_events_time > $time + get_events_interval / 1000) {
 								$timea = $time_ms + get_events_interval * 1.25;
 								echo "a$timea\n";
-								goto end;
+								close_tc ();
+								exit ();
 							}
 							
 							fwrite ( $tc, "setevents bw info notice warn err\r\n" );
@@ -3214,14 +3220,14 @@ if ($tc) {
 							while ( microtime ( 1 ) < $get_events_time )
 								$result = get_reply ();
 								
-							// now, $get_events_time is time to stop recording events
+								// now, $get_events_time is time to stop recording events
 							$get_events_time += get_events_interval / 1000;
 							while ( ($time = microtime ( 1 )) < $get_events_time ) {
 								$time_ms = ( int ) ($time * 1000);
-								foreach(explode("\r\n",$result) as $line) {
-									if(($line=='')||($line=='.'))
+								foreach ( explode ( "\r\n", $result ) as $line ) {
+									if (($line == '') || ($line == '.'))
 										break;
-									// Each row of reply is prepended with the milisecond timestamp.
+										// Each row of reply is prepended with the milisecond timestamp.
 									echo "h$time_ms $line\n";
 								}
 								$result = get_reply ();
@@ -3230,7 +3236,8 @@ if ($tc) {
 							$timea = $time_ms + get_events_interval * 1.25;
 							echo "a$time\n";
 						}
-						goto end;
+						close_tc ();
+						exit ();
 				}
 				
 				// to get all tor options
@@ -3275,13 +3282,13 @@ if ($tc) {
 						</p>";
 			}
 		}
+		close_tc ();
 	} else {
-		if ($action !== '')
-			goto end;
+		exit ();
 	}
 } else {
 	if ($action !== '')
-		exit ();
+		exit;
 	$error_message .= "<p>
 				Failed to connect to tor control.
 			</p>
@@ -4144,8 +4151,3 @@ foreach ( $tor_options_name as $a => $b ) {
 	</script>
 </body>
 </html>
-
-<?php
-end:
-fwrite ( $tc, "quit\r\n" );
-get_reply ();
