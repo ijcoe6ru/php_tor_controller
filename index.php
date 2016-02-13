@@ -25,14 +25,17 @@ function get_reply() {
 	while ( 1 ) {
 		$result_a = fread ( $tc, tc_max_result_length );
 		$result .= $result_a;
-		$lines = explode ( "\r\n", $result_a );
-		if ($line_noend)
-			unset ( $lines [0] );
-		$line_noend = substr ( $result_a, - 2 ) !== "\r\n";
-		foreach ( $lines as $line ) {
-			if ((substr ( $line, 3, 1 ) === ' ') && (filter_var ( substr ( $line, 0, 3 ), FILTER_VALIDATE_INT ) !== false))
-				return $result;
-		}
+		if (substr ( $result_a, - 2 ) == "\r\n") {
+			$lines = explode ( "\r\n", $result_a );
+			if ($line_noend)
+				unset ( $lines [0] );
+			foreach ( $lines as $line ) {
+				if ((substr ( $line, 3, 1 ) === ' ') && (filter_var ( substr ( $line, 0, 3 ), FILTER_VALIDATE_INT ) !== false))
+					return $result;
+			}
+			$line_noend = 0;
+		} else
+			$line_noend = 1;
 	}
 }
 function is_invalid_var($var, $min, $max) {
@@ -3496,7 +3499,7 @@ foreach ( $tor_options_name as $b ) {
 				}
 			}
 
-			function events_handle(data) {console.log(data);
+			function events_handle(data) {
 				var row_end, row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null, offset=0;
 				while ((row_end=data.indexOf('\n',offset))!=-1) {
 					/*
@@ -3595,7 +3598,7 @@ foreach ( $tor_options_name as $b ) {
 							}
 
 							// If the event name is not "BW", it is a log message.
-							else {return;
+							else {
 								d = 0;
 								do {
 									if (b == message_event_names[d]) {
@@ -3823,16 +3826,16 @@ foreach ( $tor_options_name as $b ) {
 		show severities:
 		<input type="checkbox" id="messages_severity_0"
 			onchange="update_messages_display(1,this.checked);">
-		<label for="messages_severity_1">INFO</label>
+		<label for="messages_severity_0">INFO</label>
 		<input type="checkbox" id="messages_severity_1"
 			onchange="update_messages_display(2,this.checked);" checked>
-		<label for="messages_severity_2">NOTICE</label>
+		<label for="messages_severity_1">NOTICE</label>
 		<input type="checkbox" id="messages_severity_2"
 			onchange="update_messages_display(3,this.checked);" checked>
-		<label for="messages_severity_3">WARN</label>
+		<label for="messages_severity_2">WARN</label>
 		<input type="checkbox" id="messages_severity_3"
 			onchange="update_messages_display(4,this.checked);" checked>
-		<label for="messages_severity_4">ERR</label>
+		<label for="messages_severity_3">ERR</label>
 		<br>
 		<button type="button"
 			onclick=
