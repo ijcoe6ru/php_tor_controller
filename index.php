@@ -21,19 +21,20 @@ define ( 'get_events_interval', 2000 ); // interval to get asynchronous events a
 function get_reply() {
 	global $tc;
 	$result = '';
-	$pos0 = 0; // position of second last "\r\n"
-	$pos1 = 0; // position of last "\r\n"
+	$pos0 = 0; // start of second to last line
 	while ( 1 ) {
 		$result .= fread ( $tc, tc_max_result_length );
-		while ( ($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false ) {
-			$pos0 = $pos1;
-			$pos1 = $pos2 + 2;
-		}
-		
-		// The last line of reply starts with 3 digits and space
-		if (strlen ( $pre = substr ( $result, $pos0, 4 ) ) == 4) {
-			if ((substr ( $pre, 3, 1 ) === ' ') && (filter_var ( substr ( $pre, 0, 3 ), FILTER_VALIDATE_INT ) !== FALSE))
-				return $result;
+		if (($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false) {
+			do {
+				$pos0 = $pos1;
+				$pos1 = $pos2 + 2;
+			} while ( ($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false );
+			
+			// The last line of reply starts with 3 digits and space
+			if (strlen ( $pre = substr ( $result, $pos0, 4 ) ) == 4) {
+				if ((substr ( $pre, 3, 1 ) === ' ') && (filter_var ( substr ( $pre, 0, 3 ), FILTER_VALIDATE_INT ) !== FALSE))
+					return $result;
+			}
 		}
 	}
 }
