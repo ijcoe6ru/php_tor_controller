@@ -7,9 +7,11 @@
 	z-index: 2;
 	top: 0px;
 }
-#command_prompt_top{
-	height:28px;
+
+#command_prompt_top {
+	height: 28px;
 }
+
 .command_prompt_col1 {
 	width: 15%;
 }
@@ -36,86 +38,141 @@
 
 .table_of_contents {
 	position: fixed;
-	background-color:white;
-	height:100%;
+	background-color: white;
+	height: 100%;
 }
+
 .contents {
 	margin-left: 250px;
 }
-.stream_list_col0{
-	width:50px;
+
+.stream_list_col0 {
+	width: 50px;
 }
-.stream_list_col1{
-	width:100px;
+
+.stream_list_col1 {
+	width: 100px;
 }
-.stream_list_col2{
-	width:100px;
+
+.stream_list_col2 {
+	width: 100px;
 }
-.stream_list_col3{
-	width:200px;
+
+.stream_list_col3 {
+	width: 200px;
 }
-#stream_list_box{
-	height:300px;
-	width:476px;
-	overflow:auto;
-	border-color:black;
-	border-style:solid;
-	border-width:1px;
+
+#stream_list_box {
+	height: 300px;
+	width: 476px;
+	overflow: auto;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
 }
-#ORlist_box{
-	width:800px;
-	height:400px;
-	overflow:auto;
-	border-color:black;
-	border-style:solid;
-	border-width:1px;
+
+#circuit_list_box {
+	width: 800px;
+	height: 400px;
+	overflow: auto;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
 }
-#ORlist_header{
-	width:1780px;
+
+.circuit_list_col0 {
+	width: 40px;
 }
-#ORlist{
-	width:1780px;
-	overflow:auto;
+
+.circuit_list_col1 {
+	width: 78px;
 }
-.ORlist_col0{
-	width:200px;
+
+.circuit_list_col2 {
+	width: 256px;
 }
-.ORlist_col1{
-	width:320px;
+
+.circuit_list_col3 {
+	width: 156px;
 }
-.ORlist_col2{
-	width:320px;
+
+.circuit_list_col4 {
+	width: 300px;
 }
-.ORlist_col3{
-	width:200px;
+
+.circuit_list_col5 {
+	width: 1800px;
 }
-.ORlist_col4{
-	width:75px;
+
+#ORlist_box {
+	width: 800px;
+	height: 400px;
+	overflow: auto;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
 }
-.ORlist_col5{
-	width:150px;
+
+#ORlist_header {
+	
 }
-.ORlist_col6{
-	width:70px;
+
+#ORlist {
+	overflow: auto;
 }
-.ORlist_col7{
-	width:70px;
+
+.ORlist_col0 {
+	width: 200px;
 }
-.ORlist_col8{
-	width:200px;
+
+.ORlist_col1 {
+	width: 320px;
 }
-.ORlist_col9{
-	width:200px;
+
+.ORlist_col2 {
+	width: 320px;
 }
-.ORlist_col10{
-	width:70px;
+
+.ORlist_col3 {
+	width: 200px;
 }
-.ORlist_col11{
-	width:100px;
+
+.ORlist_col4 {
+	width: 75px;
 }
-.ORlist_col12{
-	width:75px;
+
+.ORlist_col5 {
+	width: 150px;
 }
+
+.ORlist_col6 {
+	width: 70px;
+}
+
+.ORlist_col7 {
+	width: 70px;
+}
+
+.ORlist_col8 {
+	width: 200px;
+}
+
+.ORlist_col9 {
+	width: 200px;
+}
+
+.ORlist_col10 {
+	width: 70px;
+}
+
+.ORlist_col11 {
+	width: 100px;
+}
+
+.ORlist_col12 {
+	width: 75px;
+}
+
 #bandwidth_graph {
 	width: 712px;
 	height: 436px;
@@ -163,11 +220,12 @@
 }
 
 #messages_table_header {
+	
 }
 
 #messages_table_box {
 	height: 500px;
-	width:788px;
+	width: 788px;
 	overflow: auto;
 	border-width: 1px;
 	border-style: solid;

@@ -21,7 +21,7 @@ define ( 'get_events_interval', 2000 ); // interval to get asynchronous events a
 function get_reply() {
 	global $tc;
 	$result = '';
-	$pos0 = 0; // start of second to last line
+	$pos1 = 0; // start of last line
 	while ( 1 ) {
 		$result .= fread ( $tc, tc_max_result_length );
 		if (($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false) {
@@ -2845,6 +2845,12 @@ $tor_options_categories = array (
 		) 
 );
 
+$tor_circuit_status_name_to_col = array (
+		'BUILD_FLAGS' => 2,
+		'PURPOSE' => 3,
+		'TIME_CREATED' => 4 
+);
+
 if (isset ( $_POST ['action'] ))
 	$action = $_POST ['action'];
 else if (isset ( $_GET ['action'] ))
@@ -3081,15 +3087,17 @@ if ($tc) {
 						 *	f: update number of streams
 						 *	g: update "g" in post header
 						 *	h: a milisecond timestamp followed by a log message
+						 *	i: update circuit status
+						 *	j: update number of circuits
 						 *
 						 *line breaks are "\n"
 						 */
 						
-						//to get bootstrap progress
+						// to get bootstrap progress
 						fwrite ( $tc, "getinfo status/bootstrap-phase\r\n" );
 						
-						// to skip "250-status/bootstrap-phase=NOTICE " and next line "250 OK"
-						echo 'b', strstr ( substr ( get_reply (), 34 ), "\r", 1 ), "\n";
+						// to skip "250-status/bootstrap-phase=" and next line "250 OK"
+						echo 'b', strstr ( substr ( get_reply (), 27 ), "\r", 1 ), "\n";
 						
 						// to get stream status
 						fwrite ( $tc, "getinfo stream-status\r\n" );
@@ -3219,6 +3227,44 @@ if ($tc) {
 							get_event_finish_OR_list:
 							echo "\nd$ORnum\n";
 						}
+							
+						// to get circuit status
+						fwrite ( $tc, "getinfo circuit-status\r\n" );
+						$circuit_num = 0;
+						echo 'i';
+						$result_a = get_reply ();
+						if (substr ( $result_a, 0, 21 ) == "250+circuit-status=\r\n") {
+							foreach ( explode ( "\r\n", substr ( $result_a, 21 ) ) as $line ) {
+								if ($line === '.')
+									break;
+								$result = array ();
+								$a = explode ( ' ', $line );
+								
+								$result [0] = $a [0]; // id
+								$result [1] = $a [1]; // status
+								$result [5] = htmlspecialchars ( $a [2] ); // path
+								
+								for($b = 3; isset ( $a [$b] ); $b ++) {
+									$ab = $a [$b];
+									$c = strpos ( $ab, '=' );
+									$d = substr ( $ab, 0, $c );
+									if (isset ( $tor_circuit_status_name_to_col [$d] ))
+										$result [$tor_circuit_status_name_to_col [$d]] = substr ( $ab, $c + 1 );
+								}
+								
+								// the output, in the form of one HTML table row
+								echo '<tr>';
+								for($a = 0; $a < 6; $a ++) {
+									echo '<td class="circuit_list_col', $a, '">';
+									if (isset ( $result [$a] ))
+										echo $result [$a];
+									echo '</td>';
+								}
+								echo '</tr>';
+								$circuit_num ++;
+							}
+						}
+						echo "\nj$circuit_num\n";
 						
 						// We assume the difference between the time spent on 2 connections is less than get_events_interval/4 miliseconds.
 						// $_GET['timea'] is the the milisecond timestamp since which asynchronous events should be recorded
@@ -3423,7 +3469,8 @@ foreach ( $tor_options_name as $b ) {
 			tor_options_default,//the checkboxes for whether to use default value
 			stream_list_data='',
 			OR_list_data='',
-			get_event_g='';
+			get_event_g='',
+			tor_circuit_status='';
 		
 			function custom_command_handle_key(event) {
 				var key = event.which || event.keyCode, new_custom_command_input, new_custom_command_output;
@@ -3500,7 +3547,7 @@ foreach ( $tor_options_name as $b ) {
 								+ String(350 - a.download * 300 / bandwidth_graph_max_rate);
 						a = a.last;
 					}
-					if (maxa < bandwidth_graph_max_rate) {
+					if (maxa != bandwidth_graph_max_rate) {
 						bandwidth_graph_max_rate = maxa;
 						bandwidth_graph_y_numbers_update();
 					}
@@ -3543,6 +3590,8 @@ foreach ( $tor_options_name as $b ) {
 					 *	f: update number of streams digit: a milisecond timestamp
 					 *	g: update "g" in post header, which is the reply of "getinfo ns/all" without line breaks followed by a log message
 					 *	h: milisecond timestamp followed by an asynchornous event
+					 *	i: update circuit list
+					 *	j: update number of circuits
 					 *
 					 *line breaks are "\n"
 					 */
@@ -3658,6 +3707,15 @@ foreach ( $tor_options_name as $b ) {
 									d++;
 								} while (d < 4);
 							}
+							break;
+						case 'i':
+							if (row != tor_circuit_status) {
+								tor_circuit_status = row;
+								circuit_list.innerHTML = tor_circuit_status;
+							}
+							break;
+						case 'j':
+							circuit_number.innerHTML = row;
 					}
 					offset = row_end + 1;
 				}
@@ -3741,7 +3799,25 @@ foreach ( $tor_options_name as $b ) {
 				<tbody id="streams_list"></tbody>
 			</table>
 		</div>
-
+		
+		<h2>Circuits</h2>
+		number of circuits: <span id="circuit_number">0</span>
+		<div id="circuit_list_box">
+			<table border="1">
+				<thead id="circuit_list_header">
+					<tr>
+						<th class="circuit_list_col0">id</th>
+						<th class="circuit_list_col1">status</th>
+						<th class="circuit_list_col2">BUILD_FLAG</th>
+						<th class="circuit_list_col3">PURPOSE</th>
+						<th class="circuit_list_col4">TIME_CREATED</th>
+						<th class="circuit_list_col5">path</th>
+					</tr>
+				</thead>
+				<tbody id="circuit_list"></tbody>
+			</table>
+		</div>
+		
 		<h2>ORs</h2>
 		number of ORs: <span id="OR_number">0</span>
 		<div id="ORlist_box">
@@ -3769,8 +3845,8 @@ foreach ( $tor_options_name as $b ) {
 
 		<h2>Bandwidth Graph</h2>
 		<input type="number" value="10" step="0"
-			onchange="
-			a=this.value;
+			onchange=
+			"a=this.value;
 			bandwidth_graph_px_per_ms=a/1000;
 			a=100/a;
 			for(b=1;b<6;b++)
