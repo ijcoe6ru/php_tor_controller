@@ -3856,16 +3856,16 @@ foreach ( $tor_options_name as $b ) {
 		<h2>Message Log</h2>
 		show severities:
 		<input type="checkbox" id="messages_severity_0"
-			onchange="update_messages_display(1,this.checked);">
+			onchange="update_messages_display(0,this.checked);">
 		<label for="messages_severity_0">INFO</label>
 		<input type="checkbox" id="messages_severity_1"
-			onchange="update_messages_display(2,this.checked);" checked>
+			onchange="update_messages_display(1,this.checked);" checked>
 		<label for="messages_severity_1">NOTICE</label>
 		<input type="checkbox" id="messages_severity_2"
-			onchange="update_messages_display(3,this.checked);" checked>
+			onchange="update_messages_display(2,this.checked);" checked>
 		<label for="messages_severity_2">WARN</label>
 		<input type="checkbox" id="messages_severity_3"
-			onchange="update_messages_display(4,this.checked);" checked>
+			onchange="update_messages_display(3,this.checked);" checked>
 		<label for="messages_severity_3">ERR</label>
 		<br>
 		<button type="button"
