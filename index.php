@@ -3183,7 +3183,7 @@ if ($tc) {
 													0 => htmlspecialchars ( $result [0] ), // nickname
 													1 => $result [1], // identity
 													2 => $result [2], // digest
-													3 => $result [3] . ' ' . $result [4] . ' UTC', // publication(it has a space between date and time
+													3 => $result [3] . ' ' . $result [4], // publication(it has a space between date and time
 													4 => $country, // country
 													5 => $ip, // IP
 													6 => $result [6], // ORPort
@@ -3322,7 +3322,9 @@ if ($tc) {
 					$tor_options_name [] = $name;
 					$tor_options_name_reverse [$name] = $tor_options_number;
 					$a = substr ( $a, $b + 1 );
-					if (! ($c = substr ( $a, ' ', 1 )))
+					if ($c = strstr ( $a, ' ' ))
+						$c = substr ( $c, 1 );
+					else
 						$c = $a;
 					$tor_options_type [] = $c;
 					$tor_options_number ++;
@@ -3810,7 +3812,7 @@ foreach ( $tor_options_name as $b ) {
 						<th class="circuit_list_col1">status</th>
 						<th class="circuit_list_col2">BUILD_FLAG</th>
 						<th class="circuit_list_col3">PURPOSE</th>
-						<th class="circuit_list_col4">TIME_CREATED</th>
+						<th class="circuit_list_col4">TIME_CREATED (UTC)</th>
 						<th class="circuit_list_col5">path</th>
 					</tr>
 				</thead>
@@ -3827,7 +3829,7 @@ foreach ( $tor_options_name as $b ) {
 						<th class="ORlist_col0">nickname</th>
 						<th class="ORlist_col1">identity</th>
 						<th class="ORlist_col2">digest</th>
-						<th class="ORlist_col3">publication</th>
+						<th class="ORlist_col3">publication (UTC)</th>
 						<th class="ORlist_col4">country</th>
 						<th class="ORlist_col5">ip</th>
 						<th class="ORlist_col6">ORPort</th>
