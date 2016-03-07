@@ -3242,9 +3242,17 @@ if ($tc) {
 								
 								$result [0] = $a [0]; // id
 								$result [1] = $a [1]; // status
-								$result [5] = htmlspecialchars ( $a [2] ); // path
+									                      
+								// $a[2] may be path or an attribute
+								$c = $a [2];
+								if (substr ( $c, 0, 1 ) === '$') {
+									$result [5] = htmlspecialchars ( $c ); // path
+									$b = 3;
+								} else {
+									$b = 2;
+								}
 								
-								for($b = 3; isset ( $a [$b] ); $b ++) {
+								for(; isset ( $a [$b] ); $b ++) {
 									$ab = $a [$b];
 									$c = strpos ( $ab, '=' );
 									$d = substr ( $ab, 0, $c );
