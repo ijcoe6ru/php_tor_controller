@@ -32,7 +32,7 @@ function get_reply() {
 			
 			// The last line of reply starts with 3 digits and space
 			if (strlen ( $pre = substr ( $result, $pos0, 4 ) ) == 4) {
-				if ((substr ( $pre, 3, 1 ) === ' ') && (filter_var ( substr ( $pre, 0, 3 ), FILTER_VALIDATE_INT ) !== FALSE))
+				if (($pre [3] === ' ') && (filter_var ( substr ( $pre, 0, 3 ), FILTER_VALIDATE_INT ) !== FALSE))
 					return $result;
 			}
 		}
@@ -3147,7 +3147,7 @@ if ($tc) {
 									 * Bandiwdth
 									 * Portlist
 									 */
-									switch (substr ( $a, 0, 1 )) {
+									switch ($a [0]) {
 										case '.' :
 											if ($ORnum) {
 												echo '<tr>';
@@ -3245,7 +3245,7 @@ if ($tc) {
 									                      
 								// $a[2] may be path or an attribute
 								$c = $a [2];
-								if (substr ( $c, 0, 1 ) === '$') {
+								if ($c [0] === '$') {
 									$result [5] = htmlspecialchars ( $c ); // path
 									$b = 3;
 								} else {
@@ -3322,7 +3322,7 @@ if ($tc) {
 				fwrite ( $tc, "getinfo config/names\r\n" );
 				// first 17 characters "250+config/names=\r\n" of reply are skipped
 				foreach ( explode ( "\r\n", substr ( get_reply (), 19 ) ) as $a ) {
-					if (substr ( $a, 0, 1 ) == '.')
+					if ($a [0] == '.')
 						break;
 					$b = strpos ( $a, ' ' );
 					$tor_options_name_length [] = $b;
