@@ -3277,8 +3277,8 @@ if ($tc) {
 						// $_GET['timea'] is the the milisecond timestamp since which asynchronous events should be recorded
 						$time = microtime ( 1 );
 						$time_ms = ( int ) ($time * 1000);
-						if (isset ( $_GET ['timea'] )) {
-							$timea = $_GET ['timea'];
+						if (isset ( $_POST ['timea'] )) {
+							$timea = $_POST ['timea'];
 							// $get_events_time is time to start recording events
 							$get_events_time = $timea / 1000;
 							
@@ -3426,7 +3426,6 @@ switch ($tc_connection_auth) {
 			message_event_names = ['INFO','NOTICE','WARN','ERR'],
 			messages_by_severity = [null,null,null,null,null],
 			messages_hide = 1,//each bit means whether to display messages of the severity
-			get_event_url = '<?=path_http?>?action=get_event&timea=',
 			get_events_timea = 0,
 			tor_options_categories = [
 <?php
@@ -4266,12 +4265,14 @@ foreach ( $tor_options_name as $a => $b ) {
 		
 		// to get asynchronous events,connection info, and bootstrap progress
 		// from tor
-		setInterval(
-				function()
-				{
-					$.post(get_event_url+String(get_events_timea),{'g':get_event_g},events_handle);
-					get_events_timea+=<?=get_events_interval?>;
-				},<?=get_events_interval?>);
+		setInterval(function() {
+			$.post('<?=path_http?>', {
+				'action' : 'get_event',
+				'g' : get_event_g,
+				'timea' : String(get_events_timea)
+			}, events_handle);
+			get_events_timea += <?=get_events_interval?>;
+		}, <?=get_events_interval?>);
 	
 		tor_options_value=$('.tor_options_value');
 		tor_options_default=$('.tor_options_default_checkbox');
