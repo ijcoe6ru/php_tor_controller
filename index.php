@@ -3870,7 +3870,7 @@ foreach ( $tor_options_name as $b ) {
 		</div>
 
 		<h2>Bandwidth Graph</h2>
-		<input type="number" value="10" step="0"
+		<input type="number" value="10" step="1" min="1"
 			onchange=
 			"a=this.value;
 			bandwidth_graph_px_per_ms=a/1000;
