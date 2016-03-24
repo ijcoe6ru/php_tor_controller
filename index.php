@@ -20,21 +20,20 @@ define ( 'tor_options_number', 296 );
 define ( 'get_events_interval', 2000 ); // interval to get asynchronous events and bootstrap progress in miliseconds
 function get_reply() {
 	global $tc;
-	$result = '';
-	$pos1 = 0; // start of last line
-	while ( 1 ) {
-		$result .= fread ( $tc, tc_max_result_length );
-		if (($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false) {
-			do {
-				$pos0 = $pos1;
-				$pos1 = $pos2 + 2;
-			} while ( ($pos2 = strpos ( $result, "\r\n", $pos1 )) !== false );
-			
-			// The last line of reply starts with 3 digits and space
-			if (strlen ( $pre = substr ( $result, $pos0, 4 ) ) == 4) {
-				if (($pre [3] === ' ') && (filter_var ( substr ( $pre, 0, 3 ), FILTER_VALIDATE_INT ) !== FALSE))
+	$result = fread ( $tc, tc_max_result_length );
+	if ($result [3] === ' ')
+		return $result;
+	else {
+		$code_space = substr ( $result, 0, 3 ) . ' ';
+		$pos_new_line = 0;
+		while ( 1 ) {
+			while ( ($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false ) {
+				$pos_new_line = $tmp + 2;
+				$pre = substr ( $result, $pos_new_line, 4 );
+				if ((strlen ( $pre ) == 4) && ($pre === $code_space))
 					return $result;
 			}
+			$result .= fread ( $tc, tc_max_result_length );
 		}
 	}
 }
@@ -3417,18 +3416,19 @@ switch ($tc_connection_auth) {
 <link rel="stylesheet" type="text/css" href="<?=stylesheet_path?>">
 <script src="<?=jquery_path?>"></script>
 <script>
-		var bandwidth_last_node=null,
-			bandwidth_graph_max_rate=4,
-			bandwidth_graph_px_per_ms=0.01,
+		var bandwidth_data = [],
+			bandwidth_last_index = 0,
+			bandwidth_graph_max_rate = 4,
+			bandwidth_graph_px_per_ms = 0.01,
 			bandwidth_graph_x_numbers,
 			bandwidth_graph_y_numbers,
-			custom_command_url='<?=path_http?>',//url for custom command
-			message_event_names=['INFO','NOTICE','WARN','ERR'],
-			messages_by_severity=[null,null,null,null,null],
-			messages_hide=1,//each bit means whether to display messages of the severity
-			get_event_url='<?=path_http?>?action=get_event&timea=',
-			get_events_timea=0,
-			tor_options_categories=[
+			custom_command_url = '<?=path_http?>',//url for custom command
+			message_event_names = ['INFO','NOTICE','WARN','ERR'],
+			messages_by_severity = [null,null,null,null,null],
+			messages_hide = 1,//each bit means whether to display messages of the severity
+			get_event_url = '<?=path_http?>?action=get_event&timea=',
+			get_events_timea = 0,
+			tor_options_categories = [
 <?php
 foreach ( $tor_options_categories as $category ) {
 	$in_category = array ();
@@ -3459,11 +3459,11 @@ for($a = 0; $a < $b; $a ++)
 	echo '4294967295,';
 ?>
 			,4294967295]],
-			tor_options_number=<?=$tor_options_number?>,
+			tor_options_number = <?=$tor_options_number?>,
 			tor_options_row_group,
 
 			//the names of the options
-			tor_options_name=[
+			tor_options_name = [
 <?php
 $a = 0;
 foreach ( $tor_options_name as $b ) {
@@ -3477,10 +3477,10 @@ foreach ( $tor_options_name as $b ) {
 			],
 			tor_options_value,//the input elements for each value
 			tor_options_default,//the checkboxes for whether to use default value
-			stream_list_data='',
-			OR_list_data='',
-			get_event_g='',
-			tor_circuit_status='';
+			stream_list_data = '',
+			OR_list_data = '',
+			get_event_g = '',
+			tor_circuit_status = '';
 		
 			function custom_command_handle_key(event) {
 				var key = event.which || event.keyCode, new_custom_command_input, new_custom_command_output;
@@ -3526,45 +3526,56 @@ foreach ( $tor_options_name as $b ) {
 
 			function update_bandwidth_graph() {
 				// bandwidth graph is from (90,50) to(690,350)
-				var a, now, upload_path_data, download_path_data, x, x1;
-				a = bandwidth_last_node;
+				var current_index, current_item, now, upload_path_content, download_path_content, x, x1, current_max_rate = 4;
+				current_index = bandwidth_last_index;
+				current_item = bandwidth_data[current_index];
 				now = Date.now();
-				upload_path_data = '';
-				download_path_data = '';
-				if (a) {
-					maxa = 4;
-					while (a.upload > maxa)
-						maxa <<= 1;
-					while (a.download > maxa)
-						maxa <<= 1;
-					x = (now - a.time) * bandwidth_graph_px_per_ms;
+				x = (now - current_item.time) * bandwidth_graph_px_per_ms;
+				while (current_item.upload > current_max_rate)
+					current_max_rate <<= 1;
+				while (current_item.download > current_max_rate)
+					current_max_rate <<= 1;
+				x1 = String(690 - x);
+				upload_path_content = 'M'
+						+ x1
+						+ ' '
+						+ String(350 - current_item.upload * 300 / bandwidth_graph_max_rate);
+				download_path_content = 'M'
+						+ x1
+						+ ' '
+						+ String(350 - current_item.download * 300
+								/ bandwidth_graph_max_rate);
+				while (x < 600) {
+					current_index++;
+					if (current_index == 1200)
+						current_index = 0;
+					current_item = bandwidth_data[current_index];
+					while (current_item.upload > current_max_rate)
+						current_max_rate <<= 1;
+					while (current_item.download > current_max_rate)
+						current_max_rate <<= 1;
+					x = (now - current_item.time) * bandwidth_graph_px_per_ms;
 					x1 = String(690 - x);
-					upload_path_data = 'M' + x1 + ' '
-							+ String(350 - a.upload * 300 / bandwidth_graph_max_rate);
-					download_path_data = 'M' + x1 + ' '
-							+ String(350 - a.download * 300 / bandwidth_graph_max_rate);
-					a = a.last;
-					while (a && x < 600) {
-						while (a.upload > maxa)
-							maxa <<= 1;
-						while (a.download > maxa)
-							maxa <<= 1;
-						x = (now - a.time) * bandwidth_graph_px_per_ms;
-						x1 = String(690 - x);
-						upload_path_data += 'L' + x1 + ' '
-								+ String(350 - a.upload * 300 / bandwidth_graph_max_rate);
-						download_path_data += 'L' + x1 + ' '
-								+ String(350 - a.download * 300 / bandwidth_graph_max_rate);
-						a = a.last;
-					}
-					if (maxa != bandwidth_graph_max_rate) {
-						bandwidth_graph_max_rate = maxa;
-						bandwidth_graph_y_numbers_update();
-					}
+					upload_path_content += 'L'
+							+ x1
+							+ ' '
+							+ String(350 - current_item.upload * 300
+									/ bandwidth_graph_max_rate);
+					download_path_content += 'L'
+							+ x1
+							+ ' '
+							+ String(350 - current_item.download * 300
+									/ bandwidth_graph_max_rate);
 				}
-				upload_path.setAttribute('d', upload_path_data);
-				download_path.setAttribute('d', download_path_data);
-				// from experiment, this function may cause heavy cpu load without the delay
+				if (current_max_rate != bandwidth_graph_max_rate) {
+					bandwidth_graph_max_rate = current_max_rate;
+					bandwidth_graph_y_numbers_update();
+				} else {
+					upload_path.setAttribute('d', upload_path_content);
+					download_path.setAttribute('d', download_path_content);
+				}
+				// from experiment, this function may cause heavy cpu load without the
+				// delay
 				setTimeout(function() {
 					requestAnimationFrame(update_bandwidth_graph);
 				}, 40);
@@ -3671,20 +3682,15 @@ foreach ( $tor_options_name as $b ) {
 								bandwidth_graph_current_upload_rate_number.innerHTML = upload_rate;
 								download_rate = Number(download_rate);
 								upload_rate = Number(upload_rate);
-								bandwidth_last_node = {
+								if (bandwidth_last_index)
+									bandwidth_last_index--;
+								else
+									bandwidth_last_index = 1199;
+								bandwidth_data[bandwidth_last_index] = {
 									download : download_rate,
 									upload : upload_rate,
-									time : time,
-									last : bandwidth_last_node
+									time : time
 								};
-								if (bandwidth_graph_max_rate < download_rate
-										|| bandwidth_graph_max_rate < upload_rate) {
-									while (bandwidth_graph_max_rate < download_rate)
-										bandwidth_graph_max_rate <<= 1;
-									while (bandwidth_graph_max_rate < upload_rate)
-										bandwidth_graph_max_rate <<= 1;
-									bandwidth_graph_y_numbers_update();
-								}
 							}
 
 							// If the event name is not "BW", it is a log message.
@@ -3749,6 +3755,17 @@ foreach ( $tor_options_name as $b ) {
 					command_.style.display = 'block';
 				});
 			}
+
+			var now = Date.now();
+			bandwidth_data = [ {
+				upload : 0,
+				download : 0,
+				time : now
+			}, {
+				upload : 0,
+				download : 0,
+				time : now - 120000
+			} ];
 	</script>
 </head>
 <body>
