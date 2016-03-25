@@ -30,8 +30,14 @@ function get_reply() {
 			while ( ($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false ) {
 				$pos_new_line = $tmp + 2;
 				$pre = substr ( $result, $pos_new_line, 4 );
-				if ((strlen ( $pre ) == 4) && ($pre === $code_space))
-					return $result;
+				if ($pre == $code_space) {
+					// to make sure the next line is empty
+					if (($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false) {
+						$pos_new_line = $tmp + 2;
+						if ($pos_new_line == strlen ( $result ))
+							return $result;
+					}
+				}
 			}
 			$result .= fread ( $tc, tc_max_result_length );
 		}
