@@ -1,12 +1,20 @@
 <?php
-// path_http is the path to request this page by javascript. It needs to be changed if the name of this page is not index.php
+// path to request this page by javascript
 define ( 'path_http', '' );
-// jquery_path is the path to jquery
-define ( 'jquery_path', 'jquery.js' );
-// stylesheet_path is the path to the stylesheet
-define ( 'stylesheet_path', 'style.css' );
 
+// path to the config file
 define ( 'config_file_path', 'config.php' );
+
+// interval to run updata_status() in miliseconds
+// It should be a multiple of 4 because it is multiplied by 1.25 in some place.
+define ( 'update_status_interval', 2000 );
+
+// number of seconds of bandwidth data to be stored
+define ( 'bandwidth_data_size', 601 );
+
+// number of messages stored by the browser
+define ( 'messages_data_size', 65536 );
+
 define ( 'tc_connection_method_network', 1 );
 define ( 'tc_connection_method_unix_socket', 2 );
 define ( 'tc_connection_secure_none', 0 );
@@ -17,58 +25,7 @@ define ( 'tc_connection_auth_password', 1 );
 define ( 'tc_connection_auth_cookie', 2 );
 define ( 'tc_max_result_length', 8192 );
 define ( 'tor_options_number', 296 );
-define ( 'get_events_interval', 2000 ); // interval to get asynchronous events and bootstrap progress in miliseconds
-function get_reply() {
-	global $tc;
-	$result = fread ( $tc, tc_max_result_length );
-	if ($result [3] === ' ')
-		return $result;
-	else {
-		$code_space = substr ( $result, 0, 3 ) . ' ';
-		$pos_new_line = 0;
-		while ( 1 ) {
-			while ( ($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false ) {
-				$pos_new_line = $tmp + 2;
-				$pre = substr ( $result, $pos_new_line, 4 );
-				if ($pre == $code_space) {
-					// to make sure the next line is empty
-					if (($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false) {
-						$pos_new_line = $tmp + 2;
-						if ($pos_new_line == strlen ( $result ))
-							return $result;
-					}
-				}
-			}
-			$result .= fread ( $tc, tc_max_result_length );
-		}
-	}
-}
-function close_tc() {
-	global $tc;
-	fwrite ( $tc, "quit\r\n" );
-	get_reply ();
-}
-function is_invalid_var($var, $min, $max) {
-	return (! isset ( $var )) || (filter_var ( $var, FILTER_VALIDATE_INT ) === false) || $var < $min || $var > $max;
-}
-function update_config() {
-	global $error_message, $require_login, $tc_connection_method, $tc_connection_hostname, $tc_connection_auth;
-	$config_contents = '<?php $require_login=' . $require_login . ';$tc_connection_method=' . $tc_connection_method . ';$tc_connection_hostname=' . var_export ( $tc_connection_hostname, 1 ) . ';$tc_connection_auth=' . $tc_connection_auth;
-	if ($tc_connection_auth) {
-		global $tc_connection_password;
-		$config_contents .= ';$tc_connection_password=' . var_export ( $tc_connection_password, 1 );
-	}
-	if ($tc_connection_method == tc_connection_method_network) {
-		global $tc_connection_secure, $tc_connection_port;
-		$config_contents .= ';$tc_connection_secure=' . $tc_connection_secure . ';$tc_connection_port=' . $tc_connection_port;
-	}
-	if ($require_login) {
-		global $login_password_hash;
-		$config_contents .= ';$login_password_hash=' . var_export ( $login_password_hash, 1 );
-	}
-	if (! file_put_contents ( config_file_path, $config_contents . ";\n" ))
-		$error_message .= '<p>Error writing to config file</p>';
-}
+define ( 'update_status_getinfo_1_count', 7 );
 
 include config_file_path;
 $update_config = 0;
@@ -79,6 +36,8 @@ $tor_options_type = array ();
 $tor_options_name_length = array ();
 $tor_options_name_reverse = array ();
 $tor_options_number = 0;
+$tor_options_default_value = array ();
+$tor_version_string = '';
 
 /*
  * The descriptions are from tor (1) man page.
@@ -2856,9 +2815,309 @@ $tor_circuit_status_name_to_col = array (
 		'TIME_CREATED' => 4 
 );
 
+function get_response() {
+	global $tc;
+	$result = fread ( $tc, tc_max_result_length );
+	if ($result [3] === ' ')
+		return $result;
+	else {
+		$code_space = substr ( $result, 0, 3 ) . ' ';
+		$pos_new_line = 0;
+		while ( 1 ) {
+			while ( ($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false ) {
+				$pos_new_line = $tmp + 2;
+				$pre = substr ( $result, $pos_new_line, 4 );
+				if ($pre == $code_space) {
+					// to make sure the next line is empty
+					if (($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false) {
+						$pos_new_line = $tmp + 2;
+						if ($pos_new_line == strlen ( $result ))
+							return $result;
+					}
+				}
+			}
+			$result .= fread ( $tc, tc_max_result_length );
+		}
+	}
+}
+
+function exec_command($command) {
+	global $tc;
+	fwrite ( $tc, "$command\r\n" );
+	return get_response ();
+}
+
+function exec_command_lines($command) {
+	return explode ( "\r\n", exec_command ( $command ) );
+}
+
+function close_tc() {
+	global $tc;
+	exec_command ( 'quit' );
+}
+
+function is_invalid_var($var, $min, $max) {
+	return (! isset ( $var )) || (filter_var ( $var, FILTER_VALIDATE_INT ) === false) || $var < $min || $var > $max;
+}
+
+function update_config() {
+	global $error_message, $require_login, $tc_connection_method, $tc_connection_hostname, $tc_connection_auth;
+	$config_contents = '<?php $require_login=' . $require_login . ';$tc_connection_method=' . $tc_connection_method . ';$tc_connection_hostname=' . var_export ( $tc_connection_hostname, 1 ) . ';$tc_connection_auth=' . $tc_connection_auth;
+	if ($tc_connection_auth) {
+		global $tc_connection_password;
+		$config_contents .= ';$tc_connection_password=' . var_export ( $tc_connection_password, 1 );
+	}
+	if ($tc_connection_method == tc_connection_method_network) {
+		global $tc_connection_secure, $tc_connection_port;
+		$config_contents .= ';$tc_connection_secure=' . $tc_connection_secure . ';$tc_connection_port=' . $tc_connection_port;
+	}
+	if ($require_login) {
+		global $login_password_hash;
+		$config_contents .= ';$login_password_hash=' . var_export ( $login_password_hash, 1 );
+	}
+	if (! file_put_contents ( config_file_path, $config_contents . ";\n" ))
+		$error_message .= '<p>Error writing to config file</p>';
+}
+
+function compare_version($v) {
+	global $tor_version;
+	for($a = 0; $a < 3; $a ++) {
+		if ($tor_version [$a] > $v [$a])
+			return 1;
+		if ($tor_version [$a] < $v [$a])
+			return 0;
+	}
+	return 1;
+}
+	
+/*
+ * This function outputs the following based on $parse_dir_data.
+ * nickname
+ * identity
+ * digest
+ * publication
+ * ip
+ * ORPort
+ * DIRPort
+ * IPv6 addresses, each ending with ";"
+ * flags
+ * bandwidth
+ * portlist
+ * version
+ * Seperators are "\t".
+ */
+function output_parse_dir() {
+	global $parse_dir_data;
+	$result = '';
+	for($a = 0; $a < 12; $a ++)
+		if (isset ( $parse_dir_data [$a] ))
+			$result .= "{$parse_dir_data[$a]}\t";
+		else
+			$result .= "\t";
+	return $result;
+}
+
+/*
+ * This function parses v3 style router status entry into the following:
+ * nickname
+ * identity
+ * digest
+ * publication
+ * ip
+ * ORPort
+ * DIRPort
+ * IPv6 addresses, each ending with ";"
+ * flags
+ * bandwidth
+ * portlist
+ * version
+ * Seperators are "\t".
+ * It returns a string containing these lines when encountering the next router status entry.
+ */
+function parse_dir($line) {
+	global $parse_dir_data;
+	static $parse_dir_started = 0;
+	$line_1 = substr ( $line, 2 );
+	switch ($line [0]) {
+		case 'r' :
+			$a = explode ( ' ', $line_1 );
+			for($b = 0; $b < 8; $b ++)
+				if (! isset ( $a [$b] ))
+					$a [$b] = '';
+			if ($parse_dir_started) {
+				$result = output_parse_dir ();
+				$parse_dir_data = array (
+						$a [0],
+						$a [1],
+						$a [2],
+						"$a[3] $a[4]",
+						$a [5],
+						$a [6],
+						$a [7] 
+				);
+				return $result;
+			}
+			$parse_dir_data = array (
+					$a [0],
+					$a [1],
+					$a [2],
+					"$a[3] $a[4]",
+					$a [5],
+					$a [6],
+					$a [7] 
+			);
+			$parse_dir_started = 1;
+			break;
+		case 'a' :
+			if (isset ( $parse_dir_data [7] ))
+				$parse_dir_data [7] .= "$line_1;";
+			else
+				$parse_dir_data [7] = "$line_1;";
+			break;
+		case 's' :
+			$parse_dir_data [8] = $line_1;
+			break;
+		case 'v' :
+			$parse_dir_data [11] = $line_1;
+			break;
+		case 'w' :
+			$a = substr ( $line_1, 10 );
+			if ($b = strstr ( $a, ' ', 1 ))
+				$parse_dir_data [9] = $b;
+			else
+				$parse_dir_data [9] = $a;
+			break;
+		case 'p' :
+			$parse_dir_data [10] = $line_1;
+			break;
+	}
+	return null;
+}
+
+/*
+ * This function parses v1 style router status entry into the following:
+ * nickname
+ * identity
+ * digest
+ * publication
+ * ip
+ * ORPort
+ * DIRPort
+ * IPv6 addresses, each ending with ";"
+ * flags
+ * bandwidth
+ * portlist
+ * version
+ * Seperators are "\t".
+ * It returns a string containing these lines when encountering the next router status entry.
+ */
+function parse_dir_v1($line) {
+	global $parse_dir_data;
+	static $parse_dir_started = 0;
+	$a = strpos ( $line, ' ' );
+	$line_1 = substr ( $line, $a );
+	switch (substr ( $line, 0, 1 )) {
+		case 'router' :
+			$a = explode ( ' ', $line_1 );
+			for($b = 0; $b < 5; $b ++)
+				if (! isset ( $a [$b] ))
+					$a [$b] = '';
+			if ($parse_dir_started) {
+				$result = output_parse_dir ();
+				$parse_dir_data = array (
+						0 => $a [0],
+						4 => $a [1],
+						5 => $a [2],
+						6 => $a [4] 
+				);
+				return $result;
+			}
+			$parse_dir_data = array (
+					0 => $a [0],
+					4 => $a [1],
+					5 => $a [2],
+					6 => $a [4] 
+			);
+			$parse_dir_started = 1;
+			break;
+		case 'bandwidth' :
+			$a = substr ( $line_1, 10 );
+			if ($b = strstr ( $a, ' ', 1 ))
+				$parse_dir_data [9] = $b;
+			else
+				$parse_dir_data [9] = $a;
+			break;
+		case 'published' :
+			$a = explode ( ' ', $line_1 );
+			if (! isset ( $a [1] ))
+				$a [1] = '';
+			$parse_dir_data [3] = "$a[0] $a[1]";
+			break;
+		case 'signing-key' :
+			$parse_dir_data [1] = $line_1;
+			break;
+	}
+	return null;
+}
+
+/*
+ * This function parses 1 line of response of "getinfo status/circuit-status".
+ * It outputs 1 line of the following:
+ * id
+ * status
+ * build flag
+ * purpose
+ * time created
+ * path
+ * HS state
+ * HS address
+ * reason
+ * remote reason
+ * socks username
+ * socks password
+ * Seperators are " ".
+ */
+function output_circuit_status($line) {
+	$name_to_col = array (
+			'BUILD_FLAGS' => 2,
+			'PURPOSE' => 3,
+			'HS_STATE' => 6,
+			'REND_QUERY' => 7,
+			'TIME_CREATED' => 4,
+			'REASON' => 8,
+			'REMOTE_REASON' => 9,
+			'SOCKS_USERNAME' => 10,
+			'SOCKS_PASSWORD' => 11 
+	);
+	$a = explode ( ' ', $line );
+	if (! isset ( $a [1] ))
+		$a [1] = '';
+	$output_data = array (
+			0 => $a [0],
+			1 => $a [1] 
+	);
+	if (isset ( $a [2] )) {
+		$output_data [5] = $a [2];
+		for($b = 3; isset ( $a [$b] ); $b ++) {
+			$c = $a [$b];
+			$d = strpos ( $c, '=' );
+			$e = substr ( $c, 0, $d );
+			if (isset ( $name_to_col [$e] ))
+				$output_data [$name_to_col [$e]] = substr ( $c, $d + 1 );
+		}
+	}
+	for($b = 0; $b < 12; $b ++) {
+		if (isset ( $output_data [$b] ))
+			echo $output_data [$b], ' ';
+		else
+			echo ' ';
+	}
+	echo "\n";
+}
+
 if (isset ( $_POST ['action'] ))
 	$action = $_POST ['action'];
-else if (isset ( $_GET ['action'] ))
+elseif (isset ( $_GET ['action'] ))
 	$action = $_GET ['action'];
 else
 	$action = '';
@@ -2882,13 +3141,13 @@ if ($require_login) {
 		if ($update_config)
 			update_config ();
 		?>
+<!DOCTYPE html>
 <html>
 <head>
 <title>PHP Tor Controller</title>
 </head>
 <body>
-				<?=$error_message?>
-				<p>Logging in is required.</p>
+	<p>Logging in is required.</p>
 	<form method="post">
 		<input type="hidden" name="action" value="login">
 		<table>
@@ -2966,7 +3225,9 @@ switch ($action) {
 		}
 		break;
 }
-
+if(isset($_SESSION['b']))
+	$aaaa=0;
+else{$_SESSION['b']=1;$aaaa=1;}
 // to prevent other requests from being delayed executing
 session_write_close ();
 
@@ -3024,10 +3285,7 @@ if ($tc) {
 	$auth_success = 1;
 	switch ($tc_connection_auth) {
 		case tc_connection_auth_password :
-			if (! fwrite ( $tc, 'authenticate "' . addslashes ( $tc_connection_password ) . "\"\r\n" )) {
-				$error_message .= '<p>Failed to write to write to tor control port</p>';
-				$auth_success = 0;
-			}
+			$command = 'authenticate "' . addslashes ( $tc_connection_password ) . '"';
 			break;
 		case tc_connection_auth_cookie :
 			if (file_exists ( $tc_connection_password )) {
@@ -3039,7 +3297,7 @@ if ($tc) {
 						$error_message .= '<p>Error reading cookie file</p>';
 						$auth_success = 0;
 					} else
-						fwrite ( $tc, "authenticate " . bin2hex ( $tc_connection_auth_cookie_contents ) . "\r\n" );
+						$command = "authenticate " . bin2hex ( $tc_connection_auth_cookie_contents );
 					fclose ( $tc_connection_auth_cookie_file );
 				}
 			} else {
@@ -3048,334 +3306,385 @@ if ($tc) {
 			}
 			break;
 		default :
-			fwrite ( $tc, "authenticate\r\n" );
+			$command = 'authenticate';
 	}
 	if ($auth_success) {
-		if ($result = get_reply ()) {
-			if ($result == "250 OK\r\n") {
-				// actions to be resolved afted connecting to tor control port
-				switch ($action) {
-					case '' :
-						break;
-					case 'custom_command' :
-						if (isset ( $_POST ['custom_command_command'] )) {
-							$custom_command_command = $_POST ['custom_command_command'];
-							fwrite ( $tc, $custom_command_command . "\r\n" );
-							$result = str_replace ( array (
-									'&',
-									'<',
-									'>',
-									'"',
-									"\r\n" 
-							), array (
-									'&amp;',
-									'&lt;',
-									'&gt;',
-									'&quot;',
-									'<br>' 
-							), get_reply () );
-							
-							// because this page may be retrived from another hostname, text/html is not allowed
-							header ( 'Content-type: text/plain' );
-							echo $result;
+		if (($response = exec_command ( $command )) == "250 OK\r\n") {
+			// to get the current version
+			$tor_version_string = strstr ( substr ( exec_command ( 'getinfo version' ), 12 ), "\r", 1 );
+			$a = explode ( '.', $tor_version_string );
+			for($b = 0; $b < 4; $b ++)
+				$tor_version [$b] = ( int ) $a [$b];
+				
+			// actions to be resolved afted connecting to tor control port
+			switch ($action) {
+				case '' :
+					break;
+				case 'custom_command' :
+					header ( 'Content-type: text/plain' );
+					if (isset ( $_POST ['custom_command_command'] )) {
+						echo exec_command ( $_POST ['custom_command_command'] );
+					}
+					close_tc ();
+					exit ();
+				case 'update_status' :
+					/*
+					 * data will be empty if something fails on the server side.
+					 *
+					 * The first 8 lines are the following status of tor:
+					 * 	version
+					 * 	network-liveness
+					 * 	status/bootstrap-phase
+					 * 	status/circuit-established
+					 * 	status/enough-dir-info
+					 * 	status/good-server-descriptor
+					 * 	status/accepted-server-descriptor
+					 * 	status/reachability-succeeded
+					 * The next line is a number num in decimal meaning the
+					 * lines for stream status.
+					 * The next num lines are stream status, with " " at the end
+					 * of each line.
+					 * The next line is a number num in decimal meaning the
+					 * lines for OR connection status.
+					 * The next num lines are OR connection status, with " " at
+					 * the end of each line.
+					 * The next line is a number num in decimal meaning the
+					 * lines for circuit status.
+					 * The next num lines are circuit status. Each entry is
+					 * 	id
+					 * 	status
+					 * 	build flag
+					 * 	time created
+					 * 	path
+					 * Seperators are " ".
+					 * The next line is a number num in decimal meaning the
+					 * entries for OR status.
+					 * The next num lines are OR status. Each entry is
+					 * 	nickname
+					 * 	identity
+					 * 	digest
+					 * 	publication
+					 * 	ip
+					 * 	ORPort
+					 * 	DIRPort
+					 * 	IPv6 addresses, each ending with ';'
+					 * 	flags
+					 * 	version
+					 * 	bandwidth
+					 * 	portlist
+					 * Seperators are "\t".
+					 * Next line is "a" followed by a timestamp in miliseconds
+					 * in decimal meaning the next time_start or empty.
+					 * Each of the next lines is a timestamp in miliseconds in
+					 * decimal followed by a line of response for one of the
+					 * following asynchronous events without "650" at the
+					 * beginning of the line.
+					 * 	bw
+					 * 	info
+					 * 	notice
+					 * 	warn
+					 * 	err
+					 * Line breaks are "\n".
+					 */
+					
+					header ( 'Content-type: text/plain' );
+					
+					echo $tor_version_string,"\n";
+					
+					$response_lines = exec_command_lines ( 'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status' );
+					for($index = 0; $index < 7; $index ++)
+						echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
+						
+					// for stream-status
+					$line = $response_lines [$index];
+					if ($line [3] == '+') {
+						$response_lines_1 = array ();
+						$num = 0;
+						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+							$response_lines_1 [] = $line;
+							$num ++;
 						}
-						close_tc ();
-						exit ();
-					case 'get_event' :
-						/*
-						 *first character of each row:
-						 *	a: set timea
-						 *	b: update bootstrap progress
-						 *	c: update OR list
-						 *	d: update number of ORs
-						 *	e: update stream status
-						 *	f: update number of streams
-						 *	g: update "g" in post header
-						 *	h: a milisecond timestamp followed by a log message
-						 *	i: update circuit status
-						 *	j: update number of circuits
-						 *
-						 *line breaks are "\n"
-						 */
-						
-						// to get bootstrap progress
-						fwrite ( $tc, "getinfo status/bootstrap-phase\r\n" );
-						
-						// to skip "250-status/bootstrap-phase=" and next line "250 OK"
-						echo 'b', strstr ( substr ( get_reply (), 27 ), "\r", 1 ), "\n";
-						
-						// to get stream status
-						fwrite ( $tc, "getinfo stream-status\r\n" );
-						$stream_num = 0;
-						echo 'e';
-						if (substr ( $result = get_reply (), 0, 20 ) == "250+stream-status=\r\n") {
-							// to skip "250+stream-status=\r\n"
-							foreach ( explode ( "\r\n", substr ( $result, 20 ) ) as $a ) {
-								if ($a == '.') {
+						$index ++;
+						echo $num, "\n";
+						foreach ( $response_lines_1 as $line )
+							echo $line, " \n";
+					} else {
+						$line = substr ( $line, 18 );
+						if (isset ( $line [0] )) {
+							echo "1\n", $line, " \n";
+						} else
+							echo "0\n";
+						$index ++;
+					}
+					
+					// for orconn-status
+					$line = $response_lines [$index];
+					if ($line [3] == '+') {
+						$response_lines_1 = array ();
+						$num = 0;
+						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+							$response_lines_1 [] = $line;
+							$num ++;
+						}
+						$index ++;
+						echo $num, "\n";
+						foreach ( $response_lines_1 as $line ) {
+							$a = explode ( ' ', $line );
+							echo $a [1], ' ', $a [0], " \n";
+						}
+					} else {
+						$line = substr ( $line, 18 );
+						if (isset ( $line [0] )) {
+							$a = explode ( ' ', $line );
+							echo "1\n", $a [1], ' ', $a [0], " \n";
+						} else
+							echo "0\n";
+						$index ++;
+					}
+					
+					// for circuit-status
+					$line = $response_lines [$index];
+					if ($line [3] == '+') {
+						$response_lines_1 = array ();
+						$num = 0;
+						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+							$response_lines_1 [] = $line;
+							$num ++;
+						}
+						echo $num, "\n";
+						foreach ( $response_lines_1 as $line ) {
+							output_circuit_status ( $line );
+						}
+					} else {
+						$line = substr ( $line, 19 );
+						if (isset ( $line [0] )) {
+							echo "1\n";
+							output_circuit_status ( $line );
+						} else
+							echo "0\n";
+					}
+					
+					// for ns/all
+					$num = 0;
+					$output_lines = array ();
+					if (compare_version ( array (
+							0,
+							1,
+							2,
+							3 
+					) )) // v3 directory style
+					{
+						$response_lines = exec_command_lines ( 'getinfo ns/all' );
+						$line = $response_lines [0];
+						if ($line [3] == '+') {
+							unset ( $response_lines [0] );
+							foreach ( $response_lines as $line ) {
+								if ($line [0] == '.')
 									break;
-								}
-								echo '<tr>';
-								$b = explode ( ' ', $a );
-								for($c = 0; $c < 4; $c ++)
-									echo "<td class=\"stream_list_col$c\">$b[$c]</td>";
-								echo '</tr>';
-								$stream_num ++;
-							}
-						}
-						echo "\nf$stream_num\n";
-						
-						$ORnum = 0;
-						fwrite ( $tc, "getinfo ns/all\r\n" );
-						$result_ns = get_reply ();
-						// If reply is same as reply of last time, no OR list should be sent.
-						$result_ns_escape = str_replace ( "\r\n", '', $result_ns );
-						if ((! isset ( $_POST ['g'] )) || ($_POST ['g'] !== $result_ns_escape)) {
-							echo "g$result_ns_escape\nc";
-							
-							if (substr ( $result_ns, 0, 13 ) == "250+ns/all=\r\n") {
-								// to skip "250+ns/all=\r\n"
-								foreach ( explode ( "\r\n", substr ( $result_ns, 13 ) ) as $a ) {
-									/*
-									 * For each OR, print one html tr.
-									 * The columns are:
-									 * nickname
-									 * identity
-									 * digest
-									 * publication
-									 * country
-									 * IP
-									 * ORPort
-									 * DirPort
-									 * IPv6 address
-									 * Flags
-									 * version
-									 * Bandiwdth
-									 * Portlist
-									 */
-									switch ($a [0]) {
-										case '.' :
-											if ($ORnum) {
-												echo '<tr>';
-												for($b = 0; $b < 13; $b ++) {
-													echo "<td class=\"ORlist_col$b\">";
-													if (isset ( $ORentry [$b] ))
-														echo $ORentry [$b];
-													echo '</td>';
-												}
-												echo "</tr>";
-											}
-											goto get_event_finish_OR_list;
-										case 'r' :
-											if ($ORnum ++) {
-												echo '<tr>';
-												for($b = 0; $b < 13; $b ++) {
-													echo "<td class=\"ORlist_col$b\">";
-													if (isset ( $ORentry [$b] ))
-														echo $ORentry [$b];
-													echo '</td>';
-												}
-												echo "</tr>";
-											}
-											$result = explode ( ' ', substr ( $a, 2 ) );
-											$ip = $result [5];
-											
-											// get country
-											fwrite ( $tc, "getinfo ip-to-country/$ip\r\n" );
-											// reply from tor is "250-ip-to-country/" <ip address> "=" <2-character country code>
-											$country = substr ( strstr ( get_reply (), '=' ), 1, 2 );
-											
-											$ORentry = array (
-													0 => htmlspecialchars ( $result [0] ), // nickname
-													1 => $result [1], // identity
-													2 => $result [2], // digest
-													3 => $result [3] . ' ' . $result [4], // publication(it has a space between date and time
-													4 => $country, // country
-													5 => $ip, // IP
-													6 => $result [6], // ORPort
-													7 => $result [7] 
-											); // DirPort
-											
-											break;
-										
-										// IPv6 address
-										case 'a' :
-											if (isset ( $ORentry [8] ))
-												$ORentry [8] .= '<br>' . substr ( $a, 2 );
-											else
-												$ORentry [8] = substr ( $a, 2 );
-											break;
-										
-										// Flags
-										case 's' :
-											$ORentry [9] = substr ( $a, 2 );
-											break;
-										
-										// version
-										case 'v' :
-											$ORentry [10] = substr ( $a, 2 );
-											break;
-										
-										// bandiwdth
-										case 'w' :
-											// to skip "w Bandwidth="
-											$ORentry [11] = substr ( $a, 12 );
-											break;
-										
-										// PortList
-										case 'p' :
-											$ORentry [12] = substr ( $a, 2 );
-											break;
-									}
+								if ($out = parse_dir ( $line )) {
+									$output_lines [] = $out;
+									$num ++;
 								}
 							}
-							
-							get_event_finish_OR_list:
-							echo "\nd$ORnum\n";
-						}
-							
-						// to get circuit status
-						fwrite ( $tc, "getinfo circuit-status\r\n" );
-						$circuit_num = 0;
-						echo 'i';
-						$result_a = get_reply ();
-						if (substr ( $result_a, 0, 21 ) == "250+circuit-status=\r\n") {
-							foreach ( explode ( "\r\n", substr ( $result_a, 21 ) ) as $line ) {
-								if ($line === '.')
-									break;
-								$result = array ();
-								$a = explode ( ' ', $line );
-								
-								$result [0] = $a [0]; // id
-								$result [1] = $a [1]; // status
-									                      
-								// $a[2] may be path or an attribute
-								$c = $a [2];
-								if ($c [0] === '$') {
-									$result [5] = htmlspecialchars ( $c ); // path
-									$b = 3;
-								} else {
-									$b = 2;
-								}
-								
-								for(; isset ( $a [$b] ); $b ++) {
-									$ab = $a [$b];
-									$c = strpos ( $ab, '=' );
-									$d = substr ( $ab, 0, $c );
-									if (isset ( $tor_circuit_status_name_to_col [$d] ))
-										$result [$tor_circuit_status_name_to_col [$d]] = substr ( $ab, $c + 1 );
-								}
-								
-								// the output, in the form of one HTML table row
-								echo '<tr>';
-								for($a = 0; $a < 6; $a ++) {
-									echo '<td class="circuit_list_col', $a, '">';
-									if (isset ( $result [$a] ))
-										echo $result [$a];
-									echo '</td>';
-								}
-								echo '</tr>';
-								$circuit_num ++;
-							}
-						}
-						echo "\nj$circuit_num\n";
-						
-						// We assume the difference between the time spent on 2 connections is less than get_events_interval/4 miliseconds.
-						// $_GET['timea'] is the the milisecond timestamp since which asynchronous events should be recorded
-						$time = microtime ( 1 );
-						$time_ms = ( int ) ($time * 1000);
-						if (isset ( $_POST ['timea'] )) {
-							$timea = $_POST ['timea'];
-							// $get_events_time is time to start recording events
-							$get_events_time = $timea / 1000;
-							
-							// If $get_events_time is not in the correct range (it is initially 0), set it to the correct range.
-							if ($get_events_time < $time || $get_events_time > $time + get_events_interval / 1000) {
-								$timea = $time_ms + get_events_interval * 1.25;
-								echo "a$timea\n";
-								close_tc ();
-								exit ();
-							}
-							
-							fwrite ( $tc, "setevents bw info notice warn err\r\n" );
-							$result = get_reply ();
-							$result = substr ( $result, 8 );
-							
-							while ( microtime ( 1 ) < $get_events_time )
-								$result = get_reply ();
-								
-								// now, $get_events_time is time to stop recording events
-							$get_events_time += get_events_interval / 1000;
-							while ( ($time = microtime ( 1 )) < $get_events_time ) {
-								$time_ms = ( int ) ($time * 1000);
-								foreach ( explode ( "\r\n", $result ) as $line ) {
-									if (($line == '') || ($line == '.'))
-										break;
-										// Each row of reply is prepended with the milisecond timestamp.
-									echo "h$time_ms $line\n";
-								}
-								$result = get_reply ();
-							}
+							$output_lines [] = output_parse_dir ();
+							$num ++;
 						} else {
-							$timea = $time_ms + get_events_interval * 1.25;
-							echo "a$time\n";
+							$line = substr ( $line, 11 );
+							if (isset ( $line [0] )) {
+								parse_dir ( $line );
+								$output_lines [] = output_parse_dir ();
+								$num = 1;
+							}
 						}
-						close_tc ();
-						exit ();
-				}
-				
-				// to get all tor options
-				fwrite ( $tc, "getinfo config/names\r\n" );
-				// first 17 characters "250+config/names=\r\n" of reply are skipped
-				foreach ( explode ( "\r\n", substr ( get_reply (), 19 ) ) as $a ) {
-					if ($a [0] == '.')
-						break;
-					$b = strpos ( $a, ' ' );
-					$tor_options_name_length [] = $b;
-					$name = substr ( $a, 0, $b );
-					$tor_options_name [] = $name;
-					$tor_options_name_reverse [$name] = $tor_options_number;
-					$a = substr ( $a, $b + 1 );
-					if ($c = strstr ( $a, ' ' ))
-						$c = substr ( $c, 1 );
-					else
-						$c = $a;
-					$tor_options_type [] = $c;
-					$tor_options_number ++;
-				}
-				
-				// to get values of the options
-				fwrite ( $tc, "getconf " . implode ( ' ', $tor_options_name ) . "\r\n" );
-				$result = explode ( "\r\n", get_reply () );
-				for($a = 0; $a < tor_options_number; $a ++) {
-					// each line is 250+<option name>, so we have $tor_options_name_length+4
-					$b = substr ( $result [$a], $tor_options_name_length [$a] + 4 );
-					if ($b)
-						$tor_options_value [$a] = substr ( $b, 1 );
-						// false means default
-					else
-						$tor_options_value [$a] = false;
-				}
-			} else {
-				$error_message .= "<p>
-							Authentication failed
-						</p>
-						<p>
-							$result
-						</p>
-						<p>
-							<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
-						</p>";
+					} else // v1 directory style
+					{
+						$response_lines = exec_command_lines ( 'getinfo network-status' );
+						$line = $response_lines [0];
+						if ($line [3] == '+') {
+							unset ( $response_lines [0] );
+							foreach ( $response_lines as $line ) {
+								if ($line [0] == '.')
+									break;
+								if ($out = parse_dir_v1 ( $line )) {
+									$output_lines [] = $out;
+									$num ++;
+								}
+							}
+							$output_lines [] = output_parse_dir ();
+							$num ++;
+						} else {
+							$line = substr ( $line, 11 );
+							if (isset ( $line [0] )) {
+								parse_dir_v1 ( $line );
+								$output_lines [] = output_parse_dir ();
+								$num = 1;
+							}
+						}
+					}
+					echo $num, "\n";
+					foreach ( $output_lines as $line ) {
+						echo $line, "\n";
+					}
+						
+					// for asynchronous events
+					// $time_start is the time to start recording events in
+					// miliseconds
+					$now = ( int ) (microtime ( 1 ) * 1000);
+					if (isset ( $_POST ['time_start'] ) &&
+							(($time_start
+									= filter_var ( $_POST ['time_start'], FILTER_VALIDATE_INT ))
+									!== false) && ($time_start > $now) &&
+							($time_start < $now + update_status_interval)) {
+						
+						echo "\n";
+						if($aaaa)for($a=0;$a<65535;$a++)echo $now," INFO a\r\n";
+						$response = exec_command ( 'setevents bw info notice warn err' );
+						while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
+							$response = get_response ();
+
+						// $time_stop is the time to stop recording events in
+						// miliseconds
+						$time_stop = $time_start + update_status_interval;
+						while ( $now < $time_stop ) {
+							foreach ( explode ( "\r\n", $response ) as $line )
+								if (substr ( $line, 0, 3 ) == '650')
+									echo $now, substr ( $line, 3 ), "\n";
+							$response = get_response ();
+							$now = ( int ) (microtime ( 1 ) * 1000);
+						}
+					} else {
+							// If $time_start is not in the right range, it is reset.
+						echo 'a', $now + update_status_interval * 1.25, "\n";
+					}
+					
+					close_tc ();
+					exit ();
+				case 'geoip':
+					/*
+					 * $_POST['ip_addr'] should be IP addresses seperated by ";".
+					 * The respnse for each IP address is a 2-letter country code.
+					 * There are no seperators.
+					 */
+					header ( 'Content-type: text/plain' );
+					$command = 'getinfo';
+					$valid_addr_index = array ();
+					$valid_addr_length = array ();
+					$valid_addr_num = 0;
+					$country = array ();
+					if (isset ( $_POST ['ip_addr'] )) {
+						$num = 0;
+						foreach ( explode ( ";", $_POST ['ip_addr'] ) as $a ) {
+							if ($b [0] == '[') {
+								if ($b = filter_var ( strstr ( substr ( $b, 1 ), ']', 1 ), FILTER_VALIDATE_IP )) {
+									$command .= " ip-to-country/$b";
+									$valid_addr_index [] = $num;
+									$valid_addr_length [] = strlen ( $b );
+									$valid_addr_num ++;
+								}
+							} elseif ($b = filter_var ( $a, FILTER_VALIDATE_IP )) {
+								$command .= " ip-to-country/$b";
+								$valid_addr_index [] = $num;
+								$valid_addr_length [] = strlen ( $b );
+								$valid_addr_num ++;
+							}
+							$country [$num] = '??';
+							$num ++;
+						}
+						if ($valid_addr_num) {
+							$response_lines = exec_command_lines ( $command );
+							$a = 0;
+							foreach ( $response_lines as $line ) {
+								$b = substr ( $line, $valid_addr_length [$a] + 19, 2 );
+								if (strlen ( $b ) == 2)
+									$country [$valid_addr_index [$a]] = $b;
+								if (++ $a == $valid_addr_num)
+									break;
+							}
+						}
+						foreach ( $country as $a )
+							echo $a;
+					}
+					close_tc ();
+					exit ();
 			}
+			
+			// to get all tor options
+			$response_lines = exec_command_lines ( 'getinfo config/names' );
+			unset ( $response_lines [0] ); // first line of response "250+config/names=\r\n" is skipped
+			foreach ( $response_lines as $line ) {
+				if ($line [0] == '.')
+					break;
+				$b = strpos ( $line, ' ' );
+				$tor_options_name_length [] = $b;
+				$name = substr ( $line, 0, $b );
+				$tor_options_name [] = $name;
+				$tor_options_name_reverse [$name] = $tor_options_number;
+				$line = substr ( $line, $b + 1 );
+				if ($c = strstr ( $line, ' ' ))
+					$c = substr ( $c, 1 );
+				else
+					$c = $line;
+				$tor_options_type [] = $c;
+				$tor_options_number ++;
+			}
+			
+			// to get values of the options
+			$response_lines = exec_command_lines ( "getconf " . implode ( ' ', $tor_options_name ) );
+			for($a = 0; $a < $tor_options_number; $a ++) {
+				// each line is 250+<option name>, so we have $tor_options_name_length+4
+				$b = substr ( $response_lines [$a], $tor_options_name_length [$a] + 4 );
+				if ($b)
+					$tor_options_value [$a] = substr ( $b, 1 );
+					// false means default
+				else
+					$tor_options_value [$a] = false;
+			}
+			
+			// to get default values of the options
+			if (compare_version ( array (
+					0,
+					2,
+					4,
+					1 
+			) )) {
+				foreach ( exec_command_lines ( 'getinfo config/defaults' ) as $line ) {
+					if ($line [0] == '.')
+						break;
+					$a = strpos ( $line, ' ' );
+					$name = substr ( $line, 0, $a );
+					$value = substr ( $line, $a + 1 );
+					if (isset ( $tor_options_default_value [$name] ))
+						$tor_options_default_value [$name] .= '<p class="tor_option_description_indented">' . htmlspecialchars ( $value ) . '</p>';
+					else
+						$tor_options_default_value [$name] = '<p class="tor_option_description"><b>Default value from tor:</b></p><p class="tor_option_description_indented">' . htmlspecialchars ( $value ) . '</p>';
+				}
+				
+				foreach ( $tor_options_default_value as $name => $value ) {
+					if (isset ( $tor_options_description [$name] ))
+						$tor_options_description [$name] .= $value;
+					else
+						$tor_options_description [$name] = $value;
+				}
+			}
+		} else {
+			$error_message .= "<p>
+						Authentication failed
+					</p>
+					<p>
+						$response
+					</p>
+					<p>
+						<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
+					</p>";
 		}
-		close_tc ();
 	} else {
 		exit ();
 	}
 } else {
 	if ($action !== '')
-		exit;
+		exit ();
 	$error_message .= "<p>
-				Failed to connect to tor control.
+				Failed to connect to tor.
 			</p>
 			<p>
 				Error:
@@ -3416,24 +3725,18 @@ switch ($tc_connection_auth) {
 
 // all the output
 ?>
+<!DOCTYPE html>
 <html>
 <head>
-<title>PHP Tor Controller</title>
-<link rel="stylesheet" type="text/css" href="<?=stylesheet_path?>">
-<script src="<?=jquery_path?>"></script>
-<script>
-		var bandwidth_data = [],
-			bandwidth_last_index = 0,
-			bandwidth_graph_max_rate = 4,
-			bandwidth_graph_px_per_ms = 0.01,
-			bandwidth_graph_x_numbers,
-			bandwidth_graph_y_numbers,
-			custom_command_url = '<?=path_http?>',//url for custom command
-			message_event_names = ['INFO','NOTICE','WARN','ERR'],
-			messages_by_severity = [null,null,null,null,null],
-			messages_hide = 1,//each bit means whether to display messages of the severity
-			get_events_timea = 0,
-			tor_options_categories = [
+	<title>PHP Tor Controller</title>
+	<link rel="stylesheet" type="text/css" href="src/style.css">
+	<script src="src/jquery.min.js"></script>
+	<script src="src/js_bintrees/treebase.js"></script>
+	<script src="src/js_bintrees/rbtree.js"></script>
+	<script src="src/script.js"></script>
+	<script>
+php_tor_controller_url = '<?=path_http?>';
+tor_options_categories = [
 <?php
 foreach ( $tor_options_categories as $category ) {
 	$in_category = array ();
@@ -3459,16 +3762,17 @@ foreach ( $tor_options_categories as $category ) {
 
 // The last array means all options.
 $b = $tor_options_number >> 5;
-echo '[';
+?>
+[
+<?php
 for($a = 0; $a < $b; $a ++)
 	echo '4294967295,';
 ?>
-			,4294967295]],
-			tor_options_number = <?=$tor_options_number?>,
-			tor_options_row_group,
+,4294967295]];
+tor_options_number = <?=$tor_options_number?>;
 
-			//the names of the options
-			tor_options_name = [
+//the names of the options
+tor_options_name = [
 <?php
 $a = 0;
 foreach ( $tor_options_name as $b ) {
@@ -3479,301 +3783,16 @@ foreach ( $tor_options_name as $b ) {
 	echo '\'', $b, '\'';
 }
 ?>
-			],
-			tor_options_value,//the input elements for each value
-			tor_options_default,//the checkboxes for whether to use default value
-			stream_list_data = '',
-			OR_list_data = '',
-			get_event_g = '',
-			tor_circuit_status = '';
-		
-			function custom_command_handle_key(event) {
-				var key = event.which || event.keyCode, new_custom_command_input, new_custom_command_output;
-				if (key == 13) {
-					new_custom_command_input = $('<div class="console_input"></div>')[0];
-					custom_command_command = custom_command_input_box.value;
-					new_custom_command_input.textContent = custom_command_command;
-					$('#custom_command_console').append(new_custom_command_input);
-					custom_command_console.scrollTop = custom_command_console.scrollHeight;
-					$
-							.post(
-									custom_command_url,
-									{
-										'action' : 'custom_command',
-										'custom_command_command' : custom_command_command
-									},
-									function(data) {
-										new_custom_command_output = $('<div class="console_output"></div>')[0];
-										new_custom_command_output.innerHTML = data;
-										$('#custom_command_console').append(
-												new_custom_command_output);
-										custom_command_console.scrollTop = custom_command_console.scrollHeight;
-									});
-					custom_command_input_box.value = '';
-				}
-			}
+];
 
-			function bandwidth_graph_y_numbers_update() {
-				var a = bandwidth_graph_max_rate >> 2;
-				if (a < 0x400)
-					for (var b = 1; b < 5; b++)
-						bandwidth_graph_y_numbers[b].innerHTML = String(a * b);
-				else if (a < 0x100000)
-					for (var b = 1; b < 5; b++)
-						bandwidth_graph_y_numbers[b].innerHTML = String(a * b >> 10) + 'K';
-				else if (a < 0x40000000)
-					for (var b = 1; b < 5; b++)
-						bandwidth_graph_y_numbers[b].innerHTML = String(a * b >> 20) + 'M';
-				else
-					for (var b = 1; b < 5; b++)
-						bandwidth_graph_y_numbers[b].innerHTML = String(a * b >> 30) + 'G';
-			}
+update_status_interval=<?=update_status_interval?>;
 
-			function update_bandwidth_graph() {
-				// bandwidth graph is from (90,50) to(690,350)
-				var current_index, current_item, now, upload_path_content, download_path_content, x, x1, current_max_rate = 4;
-				current_index = bandwidth_last_index;
-				current_item = bandwidth_data[current_index];
-				now = Date.now();
-				x = (now - current_item.time) * bandwidth_graph_px_per_ms;
-				while (current_item.upload > current_max_rate)
-					current_max_rate <<= 1;
-				while (current_item.download > current_max_rate)
-					current_max_rate <<= 1;
-				x1 = String(690 - x);
-				upload_path_content = 'M'
-						+ x1
-						+ ' '
-						+ String(350 - current_item.upload * 300 / bandwidth_graph_max_rate);
-				download_path_content = 'M'
-						+ x1
-						+ ' '
-						+ String(350 - current_item.download * 300
-								/ bandwidth_graph_max_rate);
-				while (x < 600) {
-					current_index++;
-					if (current_index == 1200)
-						current_index = 0;
-					current_item = bandwidth_data[current_index];
-					while (current_item.upload > current_max_rate)
-						current_max_rate <<= 1;
-					while (current_item.download > current_max_rate)
-						current_max_rate <<= 1;
-					x = (now - current_item.time) * bandwidth_graph_px_per_ms;
-					x1 = String(690 - x);
-					upload_path_content += 'L'
-							+ x1
-							+ ' '
-							+ String(350 - current_item.upload * 300
-									/ bandwidth_graph_max_rate);
-					download_path_content += 'L'
-							+ x1
-							+ ' '
-							+ String(350 - current_item.download * 300
-									/ bandwidth_graph_max_rate);
-				}
-				if (current_max_rate != bandwidth_graph_max_rate) {
-					bandwidth_graph_max_rate = current_max_rate;
-					bandwidth_graph_y_numbers_update();
-				} else {
-					upload_path.setAttribute('d', upload_path_content);
-					download_path.setAttribute('d', download_path_content);
-				}
-				// from experiment, this function may cause heavy cpu load without the
-				// delay
-				setTimeout(function() {
-					requestAnimationFrame(update_bandwidth_graph);
-				}, 40);
-			}
+bandwidth_data_size=<?=bandwidth_data_size?>;
 
-			function update_messages_display(severity_number, display) {
-				var node = messages_by_severity[severity_number];
-				if (display) {
-					messages_hide &= ~(1 << severity_number);
-					while (node) {
-						node.data.style.display = 'table-row';
-						node = node.last;
-					}
-				} else {
-					messages_hide |= 1 << severity_number;
-					while (node) {
-						node.data.style.display = 'none';
-						node = node.last;
-					}
-				}
-			}
-
-			function events_handle(data) {
-				var row_end, row, a, b, c, d, table_row, time, new_node, download_rate, upload_rate, timea, OR_entry = null, offset=0;
-				while ((row_end=data.indexOf('\n',offset))!=-1) {
-					/*
-					 * first character of each row:
-					 *	a: set timea
-					 *	b: update bootstrap progress
-					 *	c: update OR list
-					 *	d: update number of ORs
-					 *	e: update streams list
-					 *	f: update number of streams digit: a milisecond timestamp
-					 *	g: update "g" in post header, which is the reply of "getinfo ns/all" without line breaks followed by a log message
-					 *	h: milisecond timestamp followed by an asynchornous event
-					 *	i: update circuit list
-					 *	j: update number of circuits
-					 *
-					 *line breaks are "\n"
-					 */
-
-					//to skip first character in the row
-					row = data.substr ( offset + 1, row_end - offset - 1 );
-					switch ( data[offset] ) {
-						// If row begins with "a", set timea.
-						case 'a':
-							get_events_timea = Number(row);
-							break;
-	
-						// If row begins with "b", update bootstrap progress.
-						case 'b':
-							bootstrap_progress.textContent = row;
-							break;
-	
-						// If row begins with "c", update OR list.
-						case 'c':
-							if(row!=OR_list_data){
-								OR_list_data=row;
-								ORlist.innerHTML=OR_list_data;
-							}
-							break;
-	
-						// If row begins with "d", update number of ORs
-						case 'd':
-							OR_number.textContent = row;
-							break;
-	
-						// If row begins with "e", update stream list.
-						case 'e':
-							if(row!=stream_list_data){
-								stream_list_data=row;
-								streams_list.innerHTML=stream_list_data;
-							}
-							break;
-	
-						// If row begins with "f", update number of streams.
-						case 'f':
-							stream_number.innerHTML = row;
-							break;
-	
-						//If row begins with "g", update get_event_g.
-						case 'g':
-							get_event_g = row;
-							break;
-	
-						// asynchronous event
-						case 'h':
-							// seperate time
-							a = row.indexOf(' ');
-							time = Number(row.substr(0, a));
-	
-							// seperate "650 "
-							row = row.substr(a + 5);
-	
-							// seperate event name
-							a = row.indexOf(' ');
-							b = row.substr(0, a);
-							row = row.substr(a + 1);
-							if (b == 'BW') {
-								a = row.indexOf(' ');
-								download_rate = row.substr(0, a);
-								upload_rate = row.substr(a + 1);
-								bandwidth_graph_current_download_rate_number.innerHTML = download_rate;
-								bandwidth_graph_current_upload_rate_number.innerHTML = upload_rate;
-								download_rate = Number(download_rate);
-								upload_rate = Number(upload_rate);
-								if (bandwidth_last_index)
-									bandwidth_last_index--;
-								else
-									bandwidth_last_index = 1199;
-								bandwidth_data[bandwidth_last_index] = {
-									download : download_rate,
-									upload : upload_rate,
-									time : time
-								};
-							}
-
-							// If the event name is not "BW", it is a log message.
-							else {
-								d = 0;
-								do {
-									if (b == message_event_names[d]) {
-										timea = new Date(time);
-										table_row = $('<tr></tr>');
-										c = $('<td class="messages_table_col1"></td>')[0];
-										c.textContent = timea.toLocaleString();
-										table_row.append(c);
-										c = $('<td class="messages_table_col2"></td>')[0];
-										c.textContent = b;
-										table_row.append(c);
-										c = $('<td class="messages_table_col3"></td>')[0];
-										c.textContent = row;
-										table_row.append(c);
-										table_row = table_row[0];
-										if (messages_hide & (1 << d))
-											table_row.style.display = 'none';
-										new_node = {
-											data : table_row,
-											last : messages_by_severity[d]
-										};
-										messages_by_severity[d] = new_node;
-										$('#messages_table_tbody').append(table_row);
-										break;
-									}
-									d++;
-								} while (d < 4);
-							}
-							break;
-						case 'i':
-							if (row != tor_circuit_status) {
-								tor_circuit_status = row;
-								circuit_list.innerHTML = tor_circuit_status;
-							}
-							break;
-						case 'j':
-							circuit_number.innerHTML = row;
-					}
-					offset = row_end + 1;
-				}
-			}
-			function tor_options_change_category(category) {
-				var a = tor_options_categories[category];
-				for (var b = 0; b < tor_options_number; b++) {
-					if ((a[b >> 5] >> (b & 31)) & 1)
-						tor_options_table_row[b].style.display = 'table-row-group';
-					else
-						tor_options_table_row[b].style.display = 'none';
-				}
-			}
-			function custom_command_popup(command) {
-				$.post(custom_command_url, {
-					'action' : 'custom_command',
-					'custom_command_command' : command
-				}, function(data) {
-					command_command_box.textContent = command;
-					command_reply_box.innerHTML = data;
-					command_.style.display = 'block';
-				});
-			}
-
-			var now = Date.now();
-			bandwidth_data = [ {
-				upload : 0,
-				download : 0,
-				time : now
-			}, {
-				upload : 0,
-				download : 0,
-				time : now - 120000
-			} ];
+messages_data_size=<?=messages_data_size?>;
 	</script>
 </head>
-<body>
+<body onload="body_loaded();">
 	<div id="command_" onclick="this.style.display='none';">
 		<table>
 			<tbody>
@@ -3782,7 +3801,7 @@ foreach ( $tor_options_name as $b ) {
 					<td class="command_prompt_col1"></td>
 					<td class="command_prompt_col2">
 						<div id="command_command_box"></div>
-						<div id="command_reply_box"></div>
+						<div id="command_response_box"></div>
 					</td>
 					<td class="command_prompt_col3"></td>
 				</tr>
@@ -3797,94 +3816,185 @@ foreach ( $tor_options_name as $b ) {
 	</div>
 
 	<div class="table_of_contents">
-		<a href="#status">Tor Status</a>
-		<br>
-		<a href="#new_identity">New Identity</a>
-		<br>
-		<a href="#custom_command">Custom Command</a>
-		<br>
-		<a href="#tor_settings">Tor Settings</a>
-		<br>
-		<a href="#controller_settings">PHP Tor Controller settings</a>
+		<ul>
+			<li>
+				<a href="#status">status</a>
+				<ul>
+					<li>
+						<a href="#streams_title">streams</a>
+					</li>
+					<li>
+						<a href="#orconn_title">OR sonnections</a>
+					</li>
+					<li>
+						<a href="#circuits_title">circuits</a>
+					</li>
+					<li>
+						<a href="#or_title">ORs</a>
+					</li>
+					<li>
+						<a href="#bandwidth_graph_title">bandwidth graph</a>
+					</li>
+					<li>
+						<a href="#message_log_title">message log</a>
+					</li>
+				</ul>
+			</li>
+			<li>
+				<a href="#new_identity">new Iientity</a>
+			</li>
+			<li>
+				<a href="#custom_command">custom command</a>
+			</li>
+			<li>
+				<a href="#tor_settings">Tor settings</a>
+			</li>
+			<li>
+				<a href="#controller_settings">PHP Tor Controller settings</a>
+				<ul>
+					<li>
+						<a href="#connecting_to_tor">connection to tor</a>
+					</li>
+					<li>
+						<a href="#logging_in">logging in</a>
+					</li>
+				</ul>
+			</li>
+		</ul>
 	</div>
 	<div class="contents">
 
 		<?=$error_message?>
 
-		<h1 id="status">Tor Status</h1>
+		<h1 id="status">Status</h1>
 
-		<h2>Bootstrap Progress</h2>
-		<div id="bootstrap_progress"></div>
+		<table border="1" id="status_table">
+			<tr>
+			<tr>
+				<th>connection to Tor</th>
+				<td>failed</td>
+			</tr>
+				<th>Tor version</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>network reachability</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>bootstrap progress</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>circuit established</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>up-to-date dir info</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>good server descriptor</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>accepted server descriptor</th>
+				<td></td>
+			</tr>
+			<tr>
+				<th>reachability succeeded</th>
+				<td></td>
+			</tr>
+		</table>
 
-		<h2>Streams</h2>
+		<h2 id="streams_title">streams</h2>
 		number of streams: <span id="stream_number">0</span>
 		<div id="stream_list_box">
-			<table border="1">
+			<table border="1" class="wide_table">
 				<thead id="streams_list_header">
 					<tr>
-						<th class="stream_list_col0">id</th>
-						<th class="stream_list_col1">status</th>
-						<th class="stream_list_col2">circuit id</th>
-						<th class="stream_list_col3">target</th>
+						<th>id</th>
+						<th>status</th>
+						<th>circuit id</th>
+						<th>target</th>
 					</tr>
 				</thead>
 				<tbody id="streams_list"></tbody>
 			</table>
 		</div>
-		
-		<h2>Circuits</h2>
+
+		<h2 id="orconn_title">OR connections</h2>
+		number of OR connections: <span id="orconn_number">0</span>
+		<div id="orconn_list_box">
+			<table border="1" class="wide_table">
+				<thead id="orconn_list_header">
+					<tr>
+						<th>status</th>
+						<th>name</th>
+					</tr>
+				</thead>
+				<tbody id="orconn_list"></tbody>
+			</table>
+		</div>
+
+		<h2 id="circuits_title">circuits</h2>
 		number of circuits: <span id="circuit_number">0</span>
 		<div id="circuit_list_box">
-			<table border="1">
+			<table border="1" class="wide_table">
 				<thead id="circuit_list_header">
 					<tr>
-						<th class="circuit_list_col0">id</th>
-						<th class="circuit_list_col1">status</th>
-						<th class="circuit_list_col2">BUILD_FLAG</th>
-						<th class="circuit_list_col3">PURPOSE</th>
-						<th class="circuit_list_col4">TIME_CREATED (UTC)</th>
-						<th class="circuit_list_col5">path</th>
+						<th>id</th>
+						<th>status</th>
+						<th>build flags</th>
+						<th>purpose</th>
+						<th>time created (UTC)</th>
+						<th>path</th>
+						<th>HS state</th>
+						<th>HS address</th>
+						<th>reason</th>
+						<th>remote reason</th>
+						<th>socks username</th>
+						<th>socks password</th>
 					</tr>
 				</thead>
 				<tbody id="circuit_list"></tbody>
 			</table>
 		</div>
-		
-		<h2>ORs</h2>
+
+		<h2 id="or_title">ORs</h2>
 		number of ORs: <span id="OR_number">0</span>
 		<div id="ORlist_box">
-			<table border="1">
+			<table border="1" class="wide_table">
 				<thead id="ORlist_header">
 					<tr>
-						<th class="ORlist_col0">nickname</th>
-						<th class="ORlist_col1">identity</th>
-						<th class="ORlist_col2">digest</th>
-						<th class="ORlist_col3">publication (UTC)</th>
-						<th class="ORlist_col4">country</th>
-						<th class="ORlist_col5">ip</th>
-						<th class="ORlist_col6">ORPort</th>
-						<th class="ORlist_col7">DirPort</th>
-						<th class="ORlist_col8">IPv6 address</th>
-						<th class="ORlist_col9">Flags</th>
-						<th class="ORlist_col10">version</th>
-						<th class="ORlist_col11">Bandwidth</th>
-						<th class="ORlist_col12">PortList</th>
+						<th>nickname</th>
+						<th>identity</th>
+						<th>digest</th>
+						<th>publication (UTC)</th>
+						<th>IP (country)</th>
+						<th>ORPort</th>
+						<th>DirPort</th>
+						<th>IPv6 address (country)</th>
+						<th>flags</th>
+						<th>bandwidth/(KB/s)</th>
+						<th>portlist</th>
+						<th>version</th>
 					</tr>
 				</thead>
 				<tbody id="ORlist"></tbody>
 			</table>
 		</div>
 
-		<h2>Bandwidth Graph</h2>
+		<h2 id="bandwidth_graph_title">bandwidth graph</h2>
+		<!-- Only bandwidth_data_size seconds of bandwidth information is stored. -->
 		<input type="number" value="10" step="1" min="1"
-			onchange=
-			"a=this.value;
+			onchange="a=this.value;
 			bandwidth_graph_px_per_ms=a/1000;
 			a=100/a;
 			for(b=1;b<6;b++)
 				bandwidth_graph_x_numbers[b].innerHTML=(b*a).toFixed(2);">
-			<label for="bandwidth_graph_px_per_sec"> pixles per second </label>
-			<br>
+		<label for="bandwidth_graph_px_per_sec">pixles per second</label>
+		<br>
 		<svg id="bandwidth_graph" viewBox="0 0 712 436">
 			<line x1="90" x2="690" y1="50" y2="50"
 				class="bandwidth_graph_reference_line" />
@@ -3961,44 +4071,41 @@ foreach ( $tor_options_name as $b ) {
 			<text x="376" y="422" class="bandwidth_graph_current_upload_rate">B/s</text>
 		</svg>
 
-		<h2>Message Log</h2>
-		show severities:
-		<input type="checkbox" id="messages_severity_0"
-			onchange="update_messages_display(0,this.checked);">
-		<label for="messages_severity_0">INFO</label>
-		<input type="checkbox" id="messages_severity_1"
-			onchange="update_messages_display(1,this.checked);" checked>
-		<label for="messages_severity_1">NOTICE</label>
-		<input type="checkbox" id="messages_severity_2"
-			onchange="update_messages_display(2,this.checked);" checked>
-		<label for="messages_severity_2">WARN</label>
-		<input type="checkbox" id="messages_severity_3"
-			onchange="update_messages_display(3,this.checked);" checked>
-		<label for="messages_severity_3">ERR</label>
-		<br>
+		<h2 id="message_log_title">message log</h2>
+		show severities: <input type="checkbox" id="messages_severity_0"
+			onchange="update_messages_display(0,this.checked);"> <label
+			for="messages_severity_0">INFO</label> <input type="checkbox"
+			id="messages_severity_1"
+			onchange="update_messages_display(1,this.checked);" checked> <label
+			for="messages_severity_1">NOTICE</label> <input type="checkbox"
+			id="messages_severity_2"
+			onchange="update_messages_display(2,this.checked);" checked> <label
+			for="messages_severity_2">WARN</label> <input type="checkbox"
+			id="messages_severity_3"
+			onchange="update_messages_display(3,this.checked);" checked> <label
+			for="messages_severity_3">ERR</label> <br>
 		<button type="button"
-			onclick=
-			"var a;
+			onclick="var a;
 			while(a=messages_table_tbody.firstChild)
 				messages_table_tbody.removeChild(a);">clear</button>
 		<div id="messages_table_box">
 			<table border="1" id="messages_table">
 				<thead id="messages_table_header">
 					<tr>
-						<th class="messages_table_col1">time</th>
-						<th class="messages_table_col2">severity</th>
-						<th class="messages_table_col3">message</th>
+						<th>time</th>
+						<th>severity</th>
+						<th>message</th>
 					</tr>
 				</thead>
 				<tbody id="messages_table_tbody"></tbody>
 			</table>
 		</div>
 
-		<h1 id="new_identity">New Identity</h1>
+		<h1 id="new_identity">new identity</h1>
 		<button type="button" onclick="custom_command_popup('signal newnym');">New
 			Identity</button>
 
-		<h1 id="custom_command">Custom Command</h1>
+		<h1 id="custom_command">custom command</h1>
 
 		<div id="custom_command_console"></div>
 
@@ -4009,12 +4116,11 @@ foreach ( $tor_options_name as $b ) {
 				custom_command_console.removeChild(a);">clear</button>
 
 		<br> <input type="text" id="custom_command_input_box"
-			onkeypress="custom_command_handle_key(event);">
+			onkeydown="custom_command_handle_key(event);">
 
-		<h1 id="tor_settings">Tor Settings</h1>
+		<h1 id="tor_settings">tor settings</h1>
 
-		<label for="tor_options_select_category"> show category </label>
-		<select
+		<label for="tor_options_select_category"> show category </label> <select
 			id="tor_options_select_category"
 			onchange="tor_options_change_category(this.value);">
 			<option value="0">GENERAL OPTIONS</option>
@@ -4067,7 +4173,7 @@ foreach ( $tor_options_name as $a => $b ) {
 			echo '<select class="tor_options_value"><option value="0"';
 			if ($value === '1')
 				echo '>0</option><option value="1" selected';
-			else if ($value === '0')
+			elseif ($value === '0')
 				echo ' selected>0</option><option value="1"';
 			else
 				echo '>0</option><option value="1"';
@@ -4077,9 +4183,9 @@ foreach ( $tor_options_name as $a => $b ) {
 			echo '<select class="tor_options_value"><option value="auto"';
 			if ($value === 'auto')
 				echo ' selected>auto</option><option value="0">0</option><option value="1"';
-			else if ($value === '0')
+			elseif ($value === '0')
 				echo '>auto</option><option value="0" selected>0</option><option value="1"';
-			else if ($value === '1')
+			elseif ($value === '1')
 				echo '>auto</option><option value="0"></option>0<option value="1" selected';
 			else
 				echo '>auto</option><option value="0"></option>0<option value="1"';
@@ -4121,21 +4227,13 @@ foreach ( $tor_options_name as $a => $b ) {
 }
 ?>
 		</table>
-		<button type="button"
-			onclick="var a='resetconf';
-			for(var c=0;c&lt;tor_options_number;c++){
-				a+=' '+tor_options_name[c];
-				if(!tor_options_default[c].checked)
-					a+='=\&quot;'+tor_options_value[c].value+'\&quot;';
-			}
-			custom_command_popup(a);">update settings</button>
+		<button type="button" onclick="update_settings_handle();">update settings</button>
 		<button type="button" onclick="custom_command_popup('saveconf');">
-			save settings to torrc
-		</button>
+			save settings to torrc</button>
 
 		<h1 id="controller_settings">PHP tor Controller settings</h1>
 
-		<h2 id="connecting_to_tor">Connecting to Tor</h2>
+		<h2 id="connecting_to_tor">connecting to Tor</h2>
 		<form method="post">
 			<input type="hidden" name="action" value="change_connection_method">
 			<table border="1">
@@ -4234,7 +4332,7 @@ foreach ( $tor_options_name as $a => $b ) {
 			<input type="submit" value="update">
 		</form>
 
-		<h2>Logging in</h2>
+		<h2 id="loggine_in">logging in</h2>
 		<form method="post">
 			<input type="hidden" name="action" value="change_login_method">
 			<table border="1">
@@ -4262,26 +4360,5 @@ foreach ( $tor_options_name as $a => $b ) {
 		</form>
 
 	</div>
-	<script>
-		bandwidth_graph_x_numbers=$('.bandwidth_graph_label_x_number');
-		bandwidth_graph_y_numbers=$('.bandwidth_graph_label_y_number');
-		update_bandwidth_graph();
-		tor_options_table_row=$('.tor_options_table_row');
-		tor_options_change_category(0);
-		
-		// to get asynchronous events,connection info, and bootstrap progress
-		// from tor
-		setInterval(function() {
-			$.post('<?=path_http?>', {
-				'action' : 'get_event',
-				'g' : get_event_g,
-				'timea' : String(get_events_timea)
-			}, events_handle);
-			get_events_timea += <?=get_events_interval?>;
-		}, <?=get_events_interval?>);
-	
-		tor_options_value=$('.tor_options_value');
-		tor_options_default=$('.tor_options_default_checkbox');
-	</script>
 </body>
 </html>

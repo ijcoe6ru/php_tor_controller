@@ -43,28 +43,28 @@
 }
 
 .contents {
-	margin-left: 250px;
+	margin-left: 296px;
 }
 
-.stream_list_col0 {
+#stream_list_box td:nth-child(1), #stream_list_box th:nth-child(1) {
 	width: 50px;
 }
 
-.stream_list_col1 {
+#stream_list_box td:nth-child(2), #stream_list_box th:nth-child(2) {
 	width: 100px;
 }
 
-.stream_list_col2 {
+#stream_list_box td:nth-child(3), #stream_list_box th:nth-child(3) {
 	width: 100px;
 }
 
-.stream_list_col3 {
-	width: 200px;
+#stream_list_box td:nth-child(4), #stream_list_box th:nth-child(4) {
+	width: 539px;
 }
 
 #stream_list_box {
 	height: 300px;
-	width: 476px;
+	width: 800px;
 	overflow: auto;
 	border-color: black;
 	border-style: solid;
@@ -80,30 +80,6 @@
 	border-width: 1px;
 }
 
-.circuit_list_col0 {
-	width: 40px;
-}
-
-.circuit_list_col1 {
-	width: 78px;
-}
-
-.circuit_list_col2 {
-	width: 256px;
-}
-
-.circuit_list_col3 {
-	width: 156px;
-}
-
-.circuit_list_col4 {
-	width: 300px;
-}
-
-.circuit_list_col5 {
-	width: 1800px;
-}
-
 #ORlist_box {
 	width: 800px;
 	height: 400px;
@@ -111,66 +87,6 @@
 	border-color: black;
 	border-style: solid;
 	border-width: 1px;
-}
-
-#ORlist_header {
-	
-}
-
-#ORlist {
-	overflow: auto;
-}
-
-.ORlist_col0 {
-	width: 200px;
-}
-
-.ORlist_col1 {
-	width: 320px;
-}
-
-.ORlist_col2 {
-	width: 320px;
-}
-
-.ORlist_col3 {
-	width: 200px;
-}
-
-.ORlist_col4 {
-	width: 75px;
-}
-
-.ORlist_col5 {
-	width: 150px;
-}
-
-.ORlist_col6 {
-	width: 70px;
-}
-
-.ORlist_col7 {
-	width: 70px;
-}
-
-.ORlist_col8 {
-	width: 200px;
-}
-
-.ORlist_col9 {
-	width: 200px;
-}
-
-.ORlist_col10 {
-	width: 70px;
-}
-
-.ORlist_col11 {
-	width: 100px;
-}
-
-.ORlist_col12 {
-	width: 75px;
 }
 
 #bandwidth_graph {
@@ -225,23 +141,26 @@
 
 #messages_table_box {
 	height: 500px;
-	width: 788px;
+	width: 800px;
 	overflow: auto;
 	border-width: 1px;
 	border-style: solid;
 	border-color: black;
 }
 
-.messages_table_col1 {
-	width: 190px;
+#messages_table_box td:nth-child(1), #messages_table_box th:nth-child(1)
+	{
+	width: 155px;
 }
 
-.messages_table_col2 {
+#messages_table_box td:nth-child(2), #messages_table_box th:nth-child(2)
+	{
 	width: 78px;
 }
 
-.messages_table_col3 {
-	width: 500px;
+#messages_table_box td:nth-child(3), #messages_table_box th:nth-child(3)
+	{
+	width: 562px;
 }
 
 #custom_command_console {
@@ -287,4 +206,29 @@
 
 .tor_option_description_indented3 {
 	margin-left: 22%;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+.wide_table {
+	white-space: nowrap;
+}
+
+#orconn_list_box td:nth-child(1), #orconn_list_box th:nth-child(1) {
+	width: 100px;
+}
+
+#orconn_list_box td:nth-child(2), #orconn_list_box th:nth-child(2) {
+	width: 694px;
+}
+
+#orconn_list_box {
+	height: 300px;
+	width: 800px;
+	overflow: auto;
+	border-color: black;
+	border-style: solid;
+	border-width: 1px;
 }
