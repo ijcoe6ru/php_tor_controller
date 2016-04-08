@@ -3793,7 +3793,7 @@ messages_data_size=<?=messages_data_size?>;
 	</script>
 </head>
 <body onload="body_loaded();">
-	<div id="command_" onclick="this.style.display='none';">
+	<div id="command_" onclick="this.style.display='none';$('#command_response_box *').remove();">
 		<table>
 			<tbody>
 				<tr id="command_prompt_top"></tr>
@@ -3806,8 +3806,7 @@ messages_data_size=<?=messages_data_size?>;
 					<td class="command_prompt_col3"></td>
 				</tr>
 				<tr>
-					<td class="command_prompt_col1">
-					
+					<td class="command_prompt_col1"></td>
 					<td class="command_prompt_col2">(click to dismiss)</td>
 					<td class="command_prompt_col3"></td>
 				</tr>
