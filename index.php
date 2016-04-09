@@ -3840,7 +3840,7 @@ messages_data_size=<?=messages_data_size?>;
 				</ul>
 			</li>
 			<li>
-				<a href="#new_identity">new Iientity</a>
+				<a href="#new_identity">new identity</a>
 			</li>
 			<li>
 				<a href="#custom_command">custom command</a>
