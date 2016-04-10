@@ -722,6 +722,9 @@ function update_status_handle(data) {
 										download : download,
 										time : time
 									};
+
+									bandwidth_graph_current_download_rate_number.innerHTML = String(download);
+									bandwidth_graph_current_upload_rate_number.innerHTML = String(upload);
 								}
 							}
 
