@@ -8,4 +8,6 @@ To prevent too much memory usage, a limit is set for the number of messages to b
 
 To prevent too much memory usage, a limit is set for the number of seconds of bandwidth data to be stored. It is by default 601.
 
+It is possible that too many concurrent requests occur in the browser, such as when openning many web pages at the same time. In that case, some requests will be held until the number of concurrent requests fall below the max. We need the requests to occur at exactly the right time to get asynchronous events, so some asynchronous events may be lost then.
+
 The descriptions for Tor are from tor (1) man page. The authors of the decriptions are Roger Dingledine [arma at mit.edu], Nick Mathewson [nickm at alum.mit.edu].
