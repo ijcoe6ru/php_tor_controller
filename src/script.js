@@ -1,16 +1,63 @@
-var bandwidth_data, bandwidth_last_index = 0, bandwidth_first_index = 0, bandwidth_data_size, bandwidth_graph_max_rate = 4, bandwidth_graph_px_per_ms = 0.01, bandwidth_graph_x_numbers, bandwidth_graph_y_numbers, message_event_names = [
-		'INFO', 'NOTICE', 'WARN', 'ERR' ], messages_hide = 1, // each bit means whether to display messages of the
-// corresponding severity
-get_events_timea = 0, tor_options_row_group, tor_options_value, // the input elements for each value
-tor_options_default, // the checkboxes for whether to use default value
-custom_commands_executed = null, custom_commands_executed_scroll = null, custom_command_console_jquery, php_tor_controller_url, tor_options_categories, tor_options_number, tor_options_name, update_status_interval, status_fields, stream_tbody, stream_contents = [], stream_elements = [], stream_num = 0, circuit_tbody, circuit_contents = [], circuit_elements = [], circuit_num = 0, orconn_tbody, orconn_contents = [], orconn_elements = [], orconn_num = 0, or_tbody, or_contents = [], or_elements = [], or_num = 0, data_from_server_list = null, data_from_server_list_end = null, update_status_handle_running = 0, geoip_tree = new RBTree(
+var bandwidth_data,
+		bandwidth_last_index = 0,
+		bandwidth_first_index = 0,
+		bandwidth_data_size,
+		bandwidth_graph_max_rate = 4,
+		bandwidth_graph_px_per_ms = 0.01,
+		bandwidth_graph_x_numbers,
+		bandwidth_graph_y_numbers,
+ 		message_event_names = [	'INFO', 'NOTICE', 'WARN', 'ERR' ],
+ 		messages_hide = 1, // each bit means whether to display messages of the
+ 		//corresponding severity
+ 		get_events_timea = 0,
+ 		tor_options_row_group,
+ 		tor_options_value, // the input elements for each value
+ 		tor_options_default, // the checkboxes for whether to use default value
+ 		custom_commands_executed = null,
+ 		custom_commands_executed_scroll = null,
+ 		custom_command_console_jquery,
+ 		php_tor_controller_url,
+ 		tor_options_categories,
+ 		tor_options_number,
+ 		tor_options_name,
+ 		update_status_interval,
+ 		status_fields,
+ 		stream_tbody,
+ 		stream_contents = [],
+		stream_elements = [],
+		stream_num = 0,
+		circuit_tbody,
+		circuit_contents = [],
+		circuit_elements = [],
+		circuit_num = 0,
+		orconn_tbody,
+		orconn_contents = [],
+		orconn_elements = [],
+		orconn_num = 0,
+		or_tbody,
+		or_contents = [],
+		or_elements = [],
+		or_num = 0,
+		data_from_server_list = null,
+		data_from_server_list_end = null,
+		update_status_handle_running = 0,
+ 		geoip_tree = new RBTree(
 		function(a, b) {
 			if (a < b)
 				return 1;
 			if (a > b)
 				return -1;
 			return 0;
-		}), update_status_time_start = 0, messsages_data, messages_data_size, messages_data_last_index = 0, messages_tbody, command_response_box_jquery, concurrent_requests_num = 0;
+		}),
+		update_status_time_start = 0,
+		messsages_data,
+		messages_data_size,
+		messages_data_last_index = 0,
+		messages_tbody,
+		command_response_box_jquery,
+		concurrent_requests_num = 0,
+		last_bandwidth_time,
+		bandwidth_started = 0; // timestamp of last bandwidth data in seconds
 
 function bandwidth_graph_y_numbers_update() {
 	var a = bandwidth_graph_max_rate >> 2;
@@ -256,7 +303,7 @@ function update_status_handle(data) {
 	 * 	err
 	 * Line breaks are "\n".
 	 * 
-	 * When the first time OR list is received, more than 2 seconds may be needed
+	 * When the first time OR list is received, more than 1 second may be taken
 	 * to put the OR list into DOM. So we have update_status_handle_running to
 	 * make sure only 1 instance of this function runs at a time.
 	 */
@@ -693,7 +740,7 @@ function update_status_handle(data) {
 									- a);
 							b++;
 							if (event_name == "BW") {
-								var upload, download;
+								var upload, download, new_bandwidth_time;
 								a = b;
 								b = data_from_server_list.data.indexOf(' ', a);
 								if (isNaN(download = Number(tmpstr = data_from_server_list.data
@@ -722,6 +769,24 @@ function update_status_handle(data) {
 										download : download,
 										time : time
 									};
+
+									// a message is generated if the time
+									// receiving bandwidth data is not
+									// consecutive
+									new_bandwidth_time = Math
+											.floor(time / 1000);
+									if (bandwidth_started) {
+										if (new_bandwidth_time != last_bandwidth_time + 1) {
+											console
+													.log("time of receiving bandwidth data not consecutive\nold: "
+															+ last_bandwidth_time
+															+ "\nnew: "
+															+ new_bandwidth_time);
+										}
+									} else {
+										bandwidth_started = 1;
+									}
+									last_bandwidth_time = new_bandwidth_time;
 
 									bandwidth_graph_current_download_rate_number.innerHTML = String(download);
 									bandwidth_graph_current_upload_rate_number.innerHTML = String(upload);
