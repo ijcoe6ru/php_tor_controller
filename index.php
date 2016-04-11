@@ -3225,9 +3225,7 @@ switch ($action) {
 		}
 		break;
 }
-if(isset($_SESSION['b']))
-	$aaaa=0;
-else{$_SESSION['b']=1;$aaaa=1;}
+
 // to prevent other requests from being delayed executing
 session_write_close ();
 
@@ -3537,7 +3535,6 @@ if ($tc) {
 							($time_start < $now + update_status_interval)) {
 						
 						echo "\n";
-						if($aaaa)for($a=0;$a<65535;$a++)echo $now," INFO a\r\n";
 						$response = exec_command ( 'setevents bw info notice warn err' );
 						while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
 							$response = get_response ();
