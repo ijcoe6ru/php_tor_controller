@@ -896,11 +896,18 @@ function update_status() {
 	 */
 	if (concurrent_requests_num < 2) {
 		concurrent_requests_num++;
-		$.post(php_tor_controller_url, {
-			'action' : 'update_status',
-			'time_start' : String(update_status_time_start)
-		}, update_status_handle).always(function() {
-			concurrent_requests_num--;
+		$.ajax({
+			type : 'POST',
+			url : php_tor_controller_url,
+			data : {
+				'action' : 'update_status',
+				'time_start' : String(update_status_time_start)
+			},
+			timeout : update_status_interval << 1,
+			success : update_status_handle,
+			complete : function() {
+				concurrent_requests_num--;
+			}
 		});
 	}
 	update_status_time_start += update_status_interval;
