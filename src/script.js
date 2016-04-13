@@ -114,8 +114,10 @@ function custom_command_handle_key(event) {
 							//response
 
 					last_line = 0;
-					while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
-						new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
+					while ((current_line = data.indexOf("\r\n", last_line))
+							!= -1) {
+						new_custom_command_output_line
+								= $('<div class="console_output_line"></div>')[0];
 						new_custom_command_output_line.textContent = data
 								.substr(last_line, current_line - last_line);
 						last_line = current_line + 2;
@@ -125,7 +127,8 @@ function custom_command_handle_key(event) {
 					new_custom_command_output.innerHTML = data;
 					custom_command_console_jquery
 							.append(new_custom_command_output[0]);
-					custom_command_console.scrollTop = custom_command_console.scrollHeight;
+					custom_command_console.scrollTop
+							= custom_command_console.scrollHeight;
 				});
 		custom_command_input_box.value = '';
 	} else if (key == 38)// up
@@ -136,14 +139,17 @@ function custom_command_handle_key(event) {
 			tmp = custom_commands_executed;
 		if (tmp) {
 			custom_commands_executed_scroll = tmp;
-			custom_command_input_box.value = custom_commands_executed_scroll.command;
+			custom_command_input_box.value
+					= custom_commands_executed_scroll.command;
 		}
 	} else if (key == 40)// down
 	{
 		if (custom_commands_executed_scroll) {
-			custom_commands_executed_scroll = custom_commands_executed_scroll.next;
+			custom_commands_executed_scroll
+					= custom_commands_executed_scroll.next;
 			if (custom_commands_executed_scroll)
-				custom_command_input_box.value = custom_commands_executed_scroll.command;
+				custom_command_input_box.value
+						= custom_commands_executed_scroll.command;
 			else
 				custom_command_input_box.value = '';
 		}
@@ -152,7 +158,9 @@ function custom_command_handle_key(event) {
 
 function update_bandwidth_graph() {
 	// bandwidth graph is from (90,50) to(690,350)
-	var current_index, current_item, now, upload_path_content = '', download_path_content = '', x, x1, current_max_rate = 4, path_started = 0;
+	var current_index, current_item, now, upload_path_content = '',
+			download_path_content = '', x, x1, current_max_rate = 4,
+			path_started = 0;
 
 	current_index = bandwidth_last_index;
 	while (current_index != bandwidth_first_index) {
@@ -212,7 +220,8 @@ function custom_command_popup(command) {
 				command_command_box.textContent = command;
 				last_line = 0;
 				while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
-					new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
+					new_custom_command_output_line
+							= $('<div class="console_output_line"></div>')[0];
 					new_custom_command_output_line.textContent = data.substr(
 							last_line, current_line - last_line);
 					last_line = current_line + 2;
@@ -224,7 +233,8 @@ function custom_command_popup(command) {
 }
 
 function sort(array, array_sat, start, end) {
-	var a = start, b = end, c = array[start], d = array[end], e = array_sat[start], f = array_sat[end];
+	var a = start, b = end, c = array[start], d = array[end],
+			e = array_sat[start], f = array_sat[end];
 	while (a < b) {
 		if (d < c) {
 			array[a] = d;
@@ -326,13 +336,15 @@ function update_status_handle(data) {
 	}
 	if (!update_status_handle_running) {
 		update_status_handle_running = 1;
-		var geoip_todo_addr = Array(1), geoip_todo_element = Array(1), geoip_todo_num = 0, geoip_todo_max = 1;
+		var geoip_todo_addr = Array(1), geoip_todo_element = Array(1),
+				geoip_todo_num = 0, geoip_todo_max = 1;
 		while (1) {
 			if (data_from_server_list) {
 				if (data_from_server_list.data) {
 					var last_line = 0, // position of start of current line
-					current_line, // position of end of current line
-					num, new_list, line, new_list_elements, new_element, new_element_1, new_element_1_jquery, new_element_1;
+							current_line, // position of end of current line
+							num, new_list, line, new_list_elements, new_element,
+							new_element_1, new_element_1_jquery, new_element_1;
 
 					status_fields[0].textContent = 'succeeded';
 					for (var a = 1; a < 9; a++) {
@@ -385,8 +397,9 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(' ',
 											e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
-											.substr(e, f - e);
+									new_element_1.textContent
+											= data_from_server_list.data
+													.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
 								}
@@ -450,7 +463,8 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(' ',
 											e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
+									new_element_1.textContent
+											= data_from_server_list.data
 											.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
@@ -515,8 +529,9 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(' ',
 											e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
-											.substr(e, f - e);
+									new_element_1.textContent
+											= data_from_server_list.data
+													.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
 								}
@@ -585,8 +600,9 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(
 											'\t', e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
-											.substr(e, f - e);
+									new_element_1.textContent
+											= data_from_server_list.data
+													.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
 								}
@@ -605,20 +621,30 @@ function update_status_handle(data) {
 								// to resize the geoip_todo arrays if they are
 								// not big enough
 								if (geoip_todo_num == geoip_todo_max) {
-									var tmp_size = geoip_todo_max << 1, tmp_array;
+									var tmp_size = geoip_todo_max << 1,
+											tmp_array;
 									tmp_array = Array(tmp_size);
-									for (geoip_todo_num = 0; geoip_todo_num < geoip_todo_max; geoip_todo_num++)
-										tmp_array[geoip_todo_num] = geoip_todo_addr[geoip_todo_num];
+									for (geoip_todo_num = 0;
+											geoip_todo_num < geoip_todo_max;
+											geoip_todo_num++)
+										tmp_array[geoip_todo_num]
+												= geoip_todo_addr
+														[geoip_todo_num];
 									geoip_todo_addr = tmp_array;
 									tmp_array = Array(tmp_size);
-									for (geoip_todo_num = 0; geoip_todo_num < geoip_todo_max; geoip_todo_num++)
-										tmp_array[geoip_todo_num] = geoip_todo_element[geoip_todo_num];
+									for (geoip_todo_num = 0;
+										geoip_todo_num < geoip_todo_max;
+										geoip_todo_num++)
+										tmp_array[geoip_todo_num]
+												= geoip_todo_element
+														[geoip_todo_num];
 									geoip_todo_element = tmp_array;
 									tmp_array = Array(tmp_size);
 									geoip_todo_max = tmp_size;
 								}
 								geoip_todo_addr[geoip_todo_num] = ip_addr;
-								geoip_todo_element[geoip_todo_num] = new_element_2;
+								geoip_todo_element[geoip_todo_num]
+										= new_element_2;
 								geoip_todo_num++;
 								new_element.append(new_element_1);
 								e = f + 1;
@@ -640,7 +666,8 @@ function update_status_handle(data) {
 										.substr(e, f - e);
 								new_element_1_jquery = $('<td></td>');
 								h = 0;
-								while ((i = ipv6_addr_list.indexOf(';', 'h')) != -1) {
+								while ((i = ipv6_addr_list.indexOf(';', 'h'))
+										!= -1) {
 									var new_element_3, new_element_3_jquery;
 									if (ipv6_addr_list[h] == '[')
 										ip_addr = ipv6_addr_list.substr(h + 1,
@@ -659,20 +686,30 @@ function update_status_handle(data) {
 									// to resize the geoip_todo arrays if they
 									// are not big enough
 									if (geoip_todo_num == geoip_todo_max) {
-										var tmp_size = geoip_todo_max << 1, tmp_array;
+										var tmp_size = geoip_todo_max << 1,
+												tmp_array;
 										tmp_array = Array(tmp_size);
-										for (geoip_todo_num = 0; geoip_todo_num < geoip_todo_max; geoip_todo_num++)
-											tmp_array[geoip_todo_num] = geoip_todo_addr[geoip_todo_num];
+										for (geoip_todo_num = 0;
+												geoip_todo_num < geoip_todo_max;
+												geoip_todo_num++)
+											tmp_array[geoip_todo_num]
+													= geoip_todo_addr
+															[geoip_todo_num];
 										geoip_todo_addr = tmp_array;
 										tmp_array = Array(tmp_size);
-										for (geoip_todo_num = 0; geoip_todo_num < geoip_todo_max; geoip_todo_num++)
-											tmp_array[geoip_todo_num] = geoip_todo_element[geoip_todo_num];
+										for (geoip_todo_num = 0;
+												geoip_todo_num< geoip_todo_max;
+												geoip_todo_num++)
+											tmp_array[geoip_todo_num]
+													= geoip_todo_element
+													[geoip_todo_num];
 										geoip_todo_element = tmp_array;
 										geoip_todo_max = tmp_size;
 									}
 
 									geoip_todo_addr[geoip_todo_num] = ip_addr;
-									geoip_todo_element[geoip_todo_num] = new_element_2;
+									geoip_todo_element[geoip_todo_num]
+											= new_element_2;
 									geoip_todo_num++;
 									new_element_1_jquery.append(new_element_3);
 									h = i + 1;
@@ -685,7 +722,8 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(
 											'\t', e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
+									new_element_1.textContent
+											= data_from_server_list.data
 											.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
@@ -744,13 +782,16 @@ function update_status_handle(data) {
 								var upload, download, new_bandwidth_time;
 								a = b;
 								b = data_from_server_list.data.indexOf(' ', a);
-								if (isNaN(download = Number(tmpstr = data_from_server_list.data
+								if (isNaN(download = Number(tmpstr
+										= data_from_server_list.data
 										.substr(a, b - a)))) {
 									console
 											.log("invalid value for download rate\n"
 													+ tmpstr);
-								} else if (isNaN(upload = Number(tmpstr = data_from_server_list.data
-										.substr(b + 1, current_line - b - 1)))) {
+								} else if (isNaN(upload = Number(tmpstr
+										= data_from_server_list.data
+										.substr(b + 1, current_line - b - 1))))
+								{
 									console
 											.log("invalid value for upload rate\n"
 													+ tmpstr);
@@ -758,12 +799,15 @@ function update_status_handle(data) {
 									if (bandwidth_last_index)
 										bandwidth_last_index--;
 									else
-										bandwidth_last_index = bandwidth_data_size - 1;
-									if (bandwidth_first_index == bandwidth_last_index) {
+										bandwidth_last_index =
+											bandwidth_data_size - 1;
+									if (bandwidth_first_index
+											== bandwidth_last_index) {
 										if (bandwidth_first_index)
 											bandwidth_first_index--;
 										else
-											bandwidth_first_index = bandwidth_data_size - 1;
+											bandwidth_first_index =
+												bandwidth_data_size - 1;
 									}
 									bandwidth_data[bandwidth_last_index] = {
 										upload : upload,
@@ -777,20 +821,25 @@ function update_status_handle(data) {
 									new_bandwidth_time = Math
 											.floor(time / 1000);
 									if (bandwidth_started) {
-										if (new_bandwidth_time != last_bandwidth_time + 1) {
+										if (new_bandwidth_time
+												!= last_bandwidth_time + 1) {
 											console
 													.log("time of receiving bandwidth data not consecutive\nold: "
-															+ last_bandwidth_time
+															+
+															last_bandwidth_time
 															+ "\nnew: "
-															+ new_bandwidth_time);
+															+ new_bandwidth_time
+															);
 										}
 									} else {
 										bandwidth_started = 1;
 									}
 									last_bandwidth_time = new_bandwidth_time;
 
-									bandwidth_graph_current_download_rate_number.innerHTML = String(download);
-									bandwidth_graph_current_upload_rate_number.innerHTML = String(upload);
+									bandwidth_graph_current_download_rate_numbe
+											.innerHTML = String(download);
+									bandwidth_graph_current_upload_rate_numbe
+											.innerHTML = String(upload);
 								}
 							}
 
@@ -807,11 +856,13 @@ function update_status_handle(data) {
 									}
 									if (message_event_names[c] == event_name) {
 										messages_data_last_index++;
-										if (messages_data_last_index == messages_data_size)
+										if (messages_data_last_index
+												== messages_data_size)
 											messages_data_last_index = 0;
-										if (messages_data[messages_data_last_index])
-											$(
-													messages_data[messages_data_last_index])
+										if (messages_data
+												[messages_data_last_index])
+											$(messages_data
+													[messages_data_last_index])
 													.remove();
 										new_element_jquery = $('<tr></tr>');
 										new_element_jquery
@@ -827,13 +878,17 @@ function update_status_handle(data) {
 										new_element_jquery
 												.append(new_element_1);
 										new_element_1 = $('<td></td>')[0];
-										new_element_1.textContent = data_from_server_list.data
+										new_element_1.textContent
+												= data_from_server_list.data
 												.substr(b, current_line - b);
 										new_element_jquery
 												.append(new_element_1);
 										messages_tbody
-												.prepend(new_element = new_element_jquery[0]);
-										messages_data[messages_data_last_index] = new_element;
+												.prepend(new_element
+														=
+														new_element_jquery[0]);
+										messages_data[messages_data_last_index]
+												= new_element;
 										if (messages_hide & (1 << c))
 											new_element_jquery.hide();
 										break;
@@ -863,8 +918,10 @@ function update_status_handle(data) {
 							geoip_todo_element[a].textContent = " ("
 									+ country.country + ")";
 						else {
-							geoip_todo_addr[geoip_todo_num_new] = geoip_todo_addr[a];
-							geoip_todo_element[geoip_todo_num_new] = geoip_todo_element[a];
+							geoip_todo_addr[geoip_todo_num_new]
+									= geoip_todo_addr[a];
+							geoip_todo_element[geoip_todo_num_new]
+									= geoip_todo_element[a];
 							geoip_todo_num_new++;
 						}
 					}
@@ -938,6 +995,7 @@ function body_loaded() {
 	tor_options_default = $('.tor_options_default_checkbox');
 	status_fields = $('#status_table td');
 	command_response_box_jquery = $("#command_response_box");
+	update_status();
 	$
 			.post(
 					php_tor_controller_url,
@@ -983,7 +1041,8 @@ function body_loaded() {
 									}
 									comma++;
 									if (isNaN(upload = Number(tmpstr = data
-											.substr(comma, current_line - comma)))) {
+											.substr(comma, current_line
+													- comma)))) {
 										console
 												.log("invalid value for upload rate\n"
 														+ tmpstr);
@@ -993,12 +1052,15 @@ function body_loaded() {
 									if (bandwidth_last_index)
 										bandwidth_last_index--;
 									else
-										bandwidth_last_index = bandwidth_data_size - 1;
-									if (bandwidth_first_index == bandwidth_last_index) {
+										bandwidth_last_index
+												= bandwidth_data_size - 1;
+									if (bandwidth_first_index
+											== bandwidth_last_index) {
 										if (bandwidth_first_index)
 											bandwidth_first_index--;
 										else
-											bandwidth_first_index = bandwidth_data_size - 1;
+											bandwidth_first_index
+													= bandwidth_data_size - 1;
 									}
 									bandwidth_data[bandwidth_last_index] = {
 										upload : upload,
@@ -1010,8 +1072,7 @@ function body_loaded() {
 								}
 							}
 						}
-						
-						update_status();
+
 						setInterval(update_status, update_status_interval);
 					});
 }
