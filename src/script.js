@@ -102,7 +102,7 @@ function custom_command_handle_key(event) {
 		new_custom_command_input.textContent = custom_command_command;
 		custom_command_console_jquery.append(new_custom_command_input);
 		custom_command_console.scrollTop = custom_command_console.scrollHeight;
-		costom_command_request(
+		custom_command_request(
 				custom_command_command,
 				function(data) {
 					var new_custom_command_output =
@@ -966,10 +966,10 @@ function body_loaded() {
 												+ tmpstr);
 							} else {
 								var upload, download, now;
-								last_line = current_line + 1;
 								now = new Date().getTime();
 								while (num) {
 									var comma;
+									last_line = current_line + 1;
 									current_line = data
 											.indexOf('\n', last_line);
 									comma = data.indexOf(',', last_line);
