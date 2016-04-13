@@ -10,10 +10,8 @@
  * 
  * Algorithms were taken from Julienne Walker:
  * http://eternallyconfuzzled.com/jsw_home.aspx
- * 
- * It is modified. Each node has the attribute country. find will return country
- * if data is found.
  */
+
 
 function TreeBase() {}
 
@@ -30,7 +28,7 @@ TreeBase.prototype.find = function(data) {
     while(res !== null) {
         var c = this._comparator(data, res.data);
         if(c === 0) {
-            return res.country;
+            return res.data;
         }
         else {
             res = res.get_child(c > 0);

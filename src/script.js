@@ -21,6 +21,7 @@ var bandwidth_data,
  		tor_options_number,
  		tor_options_name,
  		update_status_interval,
+ 		update_status_timeout,
  		status_fields,
  		stream_tbody,
  		stream_contents = [],
@@ -43,9 +44,10 @@ var bandwidth_data,
 		update_status_handle_running = 0,
  		geoip_tree = new RBTree(
 		function(a, b) {
-			if (a < b)
+			var ip_a=a.ip,ip_b=b.ip;
+			if (ip_a < ip_b)
 				return 1;
-			if (a > b)
+			if (ip_a > ip_b)
 				return -1;
 			return 0;
 		}),
@@ -75,6 +77,13 @@ function bandwidth_graph_y_numbers_update() {
 			bandwidth_graph_y_numbers[b].innerHTML = String(a * b >> 30) + 'G';
 }
 
+function custom_command_request(command, handler) {
+	$.post(php_tor_controller_url, {
+		'action' : 'custom_command',
+		'custom_command_command' : custom_command_command
+	}, handler);
+}
+
 function custom_command_handle_key(event) {
 	var key = event.which || event.keyCode, new_custom_command_input, tmp;
 	if (key == 13)// enter
@@ -93,33 +102,31 @@ function custom_command_handle_key(event) {
 		new_custom_command_input.textContent = custom_command_command;
 		custom_command_console_jquery.append(new_custom_command_input);
 		custom_command_console.scrollTop = custom_command_console.scrollHeight;
-		$
-				.post(
-						php_tor_controller_url,
-						{
-							'action' : 'custom_command',
-							'custom_command_command' : custom_command_command
-						},
-						function(data) {
-							var new_custom_command_output = $('<div class="console_output"></div>'), new_custom_command_output_line, last_line, // position of start of current line in response
-							current_line;// position of end of current line
-							// in response
-							last_line = 0;
-							while ((current_line = data.indexOf("\r\n",
-									last_line)) != -1) {
-								new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
-								new_custom_command_output_line.textContent = data
-										.substr(last_line, current_line
-												- last_line);
-								last_line = current_line + 2;
-								new_custom_command_output
-										.append(new_custom_command_output_line);
-							}
-							new_custom_command_output.innerHTML = data;
-							custom_command_console_jquery
-									.append(new_custom_command_output[0]);
-							custom_command_console.scrollTop = custom_command_console.scrollHeight;
-						});
+		costom_command_request(
+				custom_command_command,
+				function(data) {
+					var new_custom_command_output =
+						$('<div class="console_output"></div>'),
+							new_custom_command_output_line,
+							last_line, // position of start of current line in
+							//response
+							current_line;// position of end of current line in
+							//response
+
+					last_line = 0;
+					while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
+						new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
+						new_custom_command_output_line.textContent = data
+								.substr(last_line, current_line - last_line);
+						last_line = current_line + 2;
+						new_custom_command_output
+								.append(new_custom_command_output_line);
+					}
+					new_custom_command_output.innerHTML = data;
+					custom_command_console_jquery
+							.append(new_custom_command_output[0]);
+					custom_command_console.scrollTop = custom_command_console.scrollHeight;
+				});
 		custom_command_input_box.value = '';
 	} else if (key == 38)// up
 	{
@@ -198,27 +205,22 @@ function tor_options_change_category(category) {
 }
 
 function custom_command_popup(command) {
-	$
-			.post(
-					php_tor_controller_url,
-					{
-						'action' : 'custom_command',
-						'custom_command_command' : command
-					},
-					function(data) {
-						var new_custom_command_output_line, last_line, current_line;
-						command_command_box.textContent = command;
-						last_line = 0;
-						while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
-							new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
-							new_custom_command_output_line.textContent = data
-									.substr(last_line, current_line - last_line);
-							last_line = current_line + 2;
-							command_response_box_jquery
-									.append(new_custom_command_output_line);
-						}
-						command_.style.display = 'block';
-					});
+	custom_command_request(
+			command,
+			function(data) {
+				var new_custom_command_output_line, last_line, current_line;
+				command_command_box.textContent = command;
+				last_line = 0;
+				while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
+					new_custom_command_output_line = $('<div class="console_output_line"></div>')[0];
+					new_custom_command_output_line.textContent = data.substr(
+							last_line, current_line - last_line);
+					last_line = current_line + 2;
+					command_response_box_jquery
+							.append(new_custom_command_output_line);
+				}
+				command_.style.display = 'block';
+			});
 }
 
 function sort(array, array_sat, start, end) {
@@ -249,8 +251,8 @@ function sort(array, array_sat, start, end) {
 function update_status_handle(data) {
 	/*
 	 * data will be empty if something fails on the server side.
-	 * 
-	 * The first 8 lines are the following status of tor:
+	 *
+	 * Otherwise, he first 8 lines are the following status of tor:
 	 * 	version
 	 * 	network-liveness
 	 * 	status/bootstrap-phase
@@ -302,7 +304,7 @@ function update_status_handle(data) {
 	 * 	debug
 	 * 	err
 	 * Line breaks are "\n".
-	 * 
+	 *
 	 * When the first time OR list is received, more than 1 second may be taken
 	 * to put the OR list into DOM. So we have update_status_handle_running to
 	 * make sure only 1 instance of this function runs at a time.
@@ -348,8 +350,7 @@ function update_status_handle(data) {
 							last_line, current_line - last_line));
 					if (isNaN(num)) {
 						update_status_handle_running = 0;
-						console
-								.log("invalid value for number of lines for stream status\n"
+						console.log("invalid value for number of lines for stream status\n"
 										+ line);
 						return;
 					}
@@ -854,10 +855,13 @@ function update_status_handle(data) {
 				if (geoip_todo_num) {
 					var geoip_todo_num_new = 0;
 					for (var a = 0; a < geoip_todo_num; a++) {
-						var country = geoip_tree.find(geoip_todo_addr[a]);
+						var country = geoip_tree.find({
+							ip : geoip_todo_addr[a],
+							country : null
+						});
 						if (country)
-							geoip_todo_element[a].textContent = " (" + country
-									+ ")";
+							geoip_todo_element[a].textContent = " ("
+									+ country.country + ")";
 						else {
 							geoip_todo_addr[geoip_todo_num_new] = geoip_todo_addr[a];
 							geoip_todo_element[geoip_todo_num_new] = geoip_todo_element[a];
@@ -871,7 +875,10 @@ function update_status_handle(data) {
 					}, function(data) {
 						for (var a = 0; a < geoip_todo_num_new; a++) {
 							var country = data.substr(a * 2, 2);
-							geoip_tree.insert(geoip_todo_addr[a], country);
+							geoip_tree.insert({
+								ip : geoip_todo_addr[a],
+								country : country
+							});
 							geoip_todo_element[a].textContent = " (" + country
 									+ ")";
 						}
@@ -892,7 +899,7 @@ function update_status() {
 	 * to get asynchronous events. So it will be useless if the request is held.
 	 * So we limit that only 2 concurrent requests can exist. Note that this
 	 * number of concurrent requests only includes the requests triggered by the
-	 * function update_status.  
+	 * function update_status.
 	 */
 	if (concurrent_requests_num < 2) {
 		concurrent_requests_num++;
@@ -903,7 +910,7 @@ function update_status() {
 				'action' : 'update_status',
 				'time_start' : String(update_status_time_start)
 			},
-			timeout : update_status_interval << 1,
+			timeout : update_status_timeout,
 			success : update_status_handle,
 			complete : function() {
 				concurrent_requests_num--;
@@ -930,9 +937,83 @@ function body_loaded() {
 	tor_options_value = $('.tor_options_value');
 	tor_options_default = $('.tor_options_default_checkbox');
 	status_fields = $('#status_table td');
-	update_status();
-	setInterval(update_status, update_status_interval);
 	command_response_box_jquery = $("#command_response_box");
+	$
+			.post(
+					php_tor_controller_url,
+					{
+						'action' : 'get_bandwidth_history'
+					},
+					function(data) {
+						/*
+						 * Data will be empty if something fails on the server
+						 * side.
+						 * 
+						 * Otherwise, the first line of response is a number in
+						 * decimal n. The next n lines are 2 decimal numbers
+						 * seperated by ",". The first is download rate. The
+						 * second is upload rate. Each line represents 1 second.
+						 * They are in chronological order. Line breaks are
+						 * "\n".
+						 */
+						if (data) {
+							var num, last_line = 0, current_line, tmpstr;
+							current_line = data.indexOf('\n');
+							if (isNaN(num = Number(tmpstr = data.substr(0,
+									current_line)))) {
+								console
+										.log("invalid value for number of bandwidth data\n"
+												+ tmpstr);
+							} else {
+								var upload, download, now;
+								last_line = current_line + 1;
+								now = new Date().getTime();
+								while (num) {
+									var comma;
+									current_line = data
+											.indexOf('\n', last_line);
+									comma = data.indexOf(',', last_line);
+									if (isNaN(download = Number(tmpstr = data
+											.substr(last_line, comma
+													- last_line)))) {
+										console
+												.log("invalid value for download rate\n"
+														+ tmpstr);
+										break;
+									}
+									comma++;
+									if (isNaN(upload = Number(tmpstr = data
+											.substr(comma, current_line - comma)))) {
+										console
+												.log("invalid value for upload rate\n"
+														+ tmpstr);
+										break;
+									}
+
+									if (bandwidth_last_index)
+										bandwidth_last_index--;
+									else
+										bandwidth_last_index = bandwidth_data_size - 1;
+									if (bandwidth_first_index == bandwidth_last_index) {
+										if (bandwidth_first_index)
+											bandwidth_first_index--;
+										else
+											bandwidth_first_index = bandwidth_data_size - 1;
+									}
+									bandwidth_data[bandwidth_last_index] = {
+										upload : upload,
+										download : download,
+										time : now - num * 1000
+									};
+
+									num--;
+								}
+							}
+						}
+						
+						update_status();
+						setInterval(update_status, update_status_interval);
+					});
 }
 
 function update_settings_button_handle() {

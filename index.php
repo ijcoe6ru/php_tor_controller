@@ -6,8 +6,13 @@ define ( 'path_http', '' );
 define ( 'config_file_path', 'config.php' );
 
 // interval to run updata_status() in miliseconds
-// It should be a multiple of 4 because it is multiplied by 1.25 in some place.
 define ( 'update_status_interval', 2000 );
+
+// timeout for update_status in miliseconds
+define ( 'update_status_timeout', 4000 );
+
+// time added to now when setting new update_status_interval in miliseconds
+define ( 'update_status_time_reset', 2500 );
 
 // number of seconds of bandwidth data to be stored
 define ( 'bandwidth_data_size', 601 );
@@ -23,9 +28,8 @@ define ( 'tc_connection_secure_tls', 2 );
 define ( 'tc_connection_auth_none', 0 );
 define ( 'tc_connection_auth_password', 1 );
 define ( 'tc_connection_auth_cookie', 2 );
-define ( 'tc_max_result_length', 8192 );
+define ( 'tc_max_response_chunk_length', 8192 );
 define ( 'tor_options_number', 296 );
-define ( 'update_status_getinfo_1_count', 7 );
 
 include config_file_path;
 $update_config = 0;
@@ -38,6 +42,18 @@ $tor_options_name_reverse = array ();
 $tor_options_number = 0;
 $tor_options_default_value = array ();
 $tor_version_string = '';
+
+/*
+ * geoiplookup_command_available indicates whether the geoiplookup command is
+ * available. 0 means not determined. 1 means available. 2 means not available. 
+ */
+$geoiplookup_command_available = 0;
+
+/*
+ * geoiplookup6_command_available indicates whether the geoiplookup6 command is
+ * available. 0 means not determined. 1 means available. 2 means not available. 
+ */
+$geoiplookup6_command_available = 0;
 
 /*
  * The descriptions are from tor (1) man page.
@@ -2497,7 +2513,7 @@ $tor_options_description = array (
 				<b>seconds</b>|<b>minutes</b>|<b>hours</b></p><p class="tor_option_description_indented">How early before the official
 				expiration of a an Ed25519 signing key do we replace it and
 				issue a new key? (Default: 3 hours for link and auth; 1 day
-				for signing.)</p>' 
+				for signing.)</p>'
 );
 
 /*
@@ -2578,7 +2594,7 @@ $tor_options_categories = array (
 				'DisableIOCP',
 				'UserspaceIOCPBuffers',
 				'UseFilteringSSLBufferevents',
-				'CountPrivateBandwidth' 
+				'CountPrivateBandwidth'
 		),
 		array (
 				'AllowInvalidNodes',
@@ -2666,7 +2682,7 @@ $tor_options_categories = array (
 				'PathBiasScaleUseThreshold',
 				'ClientUseIPv6',
 				'ClientPreferIPv6ORPort',
-				'PathsNeededToBuildCircuits' 
+				'PathsNeededToBuildCircuits'
 		),
 		array (
 				'Address',
@@ -2715,14 +2731,14 @@ $tor_options_categories = array (
 				'ExtendAllowPrivateAddresses',
 				'MaxMemInQueues',
 				'SigningKeyLifetime',
-				'OfflineMasterKey' 
+				'OfflineMasterKey'
 		),
 		array (
 				'DirPortFrontPage',
 				'HidServDirectoryV2',
 				'DirPort',
 				'DirListenAddress',
-				'DirPolicy' 
+				'DirPolicy'
 		),
 		array (
 				'AuthoritativeDirectory',
@@ -2758,7 +2774,7 @@ $tor_options_categories = array (
 				'RephistTrackTime',
 				'VoteOnHidServDirectoriesV2',
 				'AuthDirHasIPv6Connectivity',
-				'MinMeasuredBWsForAuthToIgnoreAdvertised' 
+				'MinMeasuredBWsForAuthToIgnoreAdvertised'
 		),
 		array (
 				'HiddenServiceDir',
@@ -2771,7 +2787,7 @@ $tor_options_categories = array (
 				'HiddenServiceMaxStreamsCloseCircuit',
 				'RendPostPeriod',
 				'HiddenServiceDirGroupReadable',
-				'HiddenServiceNumIntroductionPoints' 
+				'HiddenServiceNumIntroductionPoints'
 		),
 		array (
 				'TestingTorNetwork',
@@ -2805,40 +2821,46 @@ $tor_options_categories = array (
 				'TestingMinExitFlagThreshold',
 				'TestingLinkCertifetime',
 				'TestingAuthKeyLifetime',
-				'TestingLinkKeySlop' 
-		) 
+				'TestingLinkKeySlop'
+		)
 );
 
 $tor_circuit_status_name_to_col = array (
 		'BUILD_FLAGS' => 2,
 		'PURPOSE' => 3,
-		'TIME_CREATED' => 4 
+		'TIME_CREATED' => 4
 );
 
 function get_response() {
 	global $tc;
-	$result = fread ( $tc, tc_max_result_length );
-	if ($result [3] === ' ')
-		return $result;
-	else {
-		$code_space = substr ( $result, 0, 3 ) . ' ';
-		$pos_new_line = 0;
-		while ( 1 ) {
-			while ( ($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false ) {
-				$pos_new_line = $tmp + 2;
-				$pre = substr ( $result, $pos_new_line, 4 );
-				if ($pre == $code_space) {
-					// to make sure the next line is empty
-					if (($tmp = strpos ( $result, "\r\n", $pos_new_line )) !== false) {
-						$pos_new_line = $tmp + 2;
-						if ($pos_new_line == strlen ( $result ))
-							return $result;
+	if ($response_new_chunk = fread ( $tc, tc_max_response_chunk_length )) {
+		$response = $response_new_chunk;
+		if ($response [3] === ' ')
+			return $response;
+		else {
+			$code_space = substr ( $response, 0, 3 ) . ' ';
+			$pos_new_line = 0;
+			while ( 1 ) {
+				while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false ) {
+					$pos_new_line = $tmp + 2;
+					$pre = substr ( $response, $pos_new_line, 4 );
+					if ($pre == $code_space) {
+						// to make sure the next line is empty
+						if (($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false) {
+							$pos_new_line = $tmp + 2;
+							if ($pos_new_line == strlen ( $response ))
+								return $response;
+						}
 					}
 				}
+				if ($response_new_chunk = fread ( $tc, tc_max_response_chunk_length ))
+					$response .= $response_new_chunk;
+				else
+					return $response;
 			}
-			$result .= fread ( $tc, tc_max_result_length );
 		}
-	}
+	} else
+		return '';
 }
 
 function exec_command($command) {
@@ -2879,9 +2901,19 @@ function update_config() {
 		$error_message .= '<p>Error writing to config file</p>';
 }
 
+/*
+ * This function compares the current version of tor with the version required.
+ * It returns 1 if the current version is higher or equal to the version
+ * required. It returns 0 otherwise.
+ * 
+ * The format for $v should be an array of 4 numbers. Each represent a part of
+ * the version to be compared with.
+ */
 function compare_version($v) {
 	global $tor_version;
 	for($a = 0; $a < 3; $a ++) {
+		if (! isset ( $tor_version [$a] ))
+			return 0;
 		if ($tor_version [$a] > $v [$a])
 			return 1;
 		if ($tor_version [$a] < $v [$a])
@@ -2889,7 +2921,7 @@ function compare_version($v) {
 	}
 	return 1;
 }
-	
+
 /*
  * This function outputs the following based on $parse_dir_data.
  * nickname
@@ -2953,7 +2985,7 @@ function parse_dir($line) {
 						"$a[3] $a[4]",
 						$a [5],
 						$a [6],
-						$a [7] 
+						$a [7]
 				);
 				return $result;
 			}
@@ -2964,7 +2996,7 @@ function parse_dir($line) {
 					"$a[3] $a[4]",
 					$a [5],
 					$a [6],
-					$a [7] 
+					$a [7]
 			);
 			$parse_dir_started = 1;
 			break;
@@ -3028,7 +3060,7 @@ function parse_dir_v1($line) {
 						0 => $a [0],
 						4 => $a [1],
 						5 => $a [2],
-						6 => $a [4] 
+						6 => $a [4]
 				);
 				return $result;
 			}
@@ -3036,7 +3068,7 @@ function parse_dir_v1($line) {
 					0 => $a [0],
 					4 => $a [1],
 					5 => $a [2],
-					6 => $a [4] 
+					6 => $a [4]
 			);
 			$parse_dir_started = 1;
 			break;
@@ -3087,14 +3119,14 @@ function output_circuit_status($line) {
 			'REASON' => 8,
 			'REMOTE_REASON' => 9,
 			'SOCKS_USERNAME' => 10,
-			'SOCKS_PASSWORD' => 11 
+			'SOCKS_PASSWORD' => 11
 	);
 	$a = explode ( ' ', $line );
 	if (! isset ( $a [1] ))
 		$a [1] = '';
 	$output_data = array (
 			0 => $a [0],
-			1 => $a [1] 
+			1 => $a [1]
 	);
 	if (isset ( $a [2] )) {
 		$output_data [5] = $a [2];
@@ -3267,17 +3299,19 @@ if ($tc_connection_method == tc_connection_method_network) {
 		$tc_connection_hostname = "[$tc_connection_hostname]";
 	switch ($tc_connection_secure) {
 		case tc_connection_secure_ssl :
-			$tc = stream_socket_client ( "ssl://$tc_connection_hostname:$tc_connection_port", $errno, $errstr );
+			$tc_url = "ssl://$tc_connection_hostname:$tc_connection_port";
 			break;
 		case tc_connection_secure_tls :
-			$tc = stream_socket_client ( "tls://$tc_connection_hostname:$tc_connection_port", $errno, $errstr );
+			$tc_url = "tls://$tc_connection_hostname:$tc_connection_port";
 			break;
 		default :
-			$tc = stream_socket_client ( "tcp://$tc_connection_hostname:$tc_connection_port", $errno, $errstr );
+			$tc_url = "tcp://$tc_connection_hostname:$tc_connection_port";
 	}
 } else {
-	$tc = fsockopen ( "unix://$tc_connection_hostname", $errno, $errstr );
+	$tc_url = "unix://$tc_connection_hostname";
 }
+
+$tc = stream_socket_client ( $tc_url, $errno, $errstr );
 
 if ($tc) {
 	$auth_success = 1;
@@ -3313,7 +3347,7 @@ if ($tc) {
 			$a = explode ( '.', $tor_version_string );
 			for($b = 0; $b < 4; $b ++)
 				$tor_version [$b] = ( int ) $a [$b];
-				
+
 			// actions to be resolved afted connecting to tor control port
 			switch ($action) {
 				case '' :
@@ -3325,6 +3359,7 @@ if ($tc) {
 					}
 					close_tc ();
 					exit ();
+
 				case 'update_status' :
 					/*
 					 * data will be empty if something fails on the server side.
@@ -3384,15 +3419,15 @@ if ($tc) {
 					 * 	err
 					 * Line breaks are "\n".
 					 */
-					
+
 					header ( 'Content-type: text/plain' );
-					
+
 					echo $tor_version_string,"\n";
-					
+
 					$response_lines = exec_command_lines ( 'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status' );
 					for($index = 0; $index < 7; $index ++)
 						echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
-						
+
 					// for stream-status
 					$line = $response_lines [$index];
 					if ($line [3] == '+') {
@@ -3414,7 +3449,7 @@ if ($tc) {
 							echo "0\n";
 						$index ++;
 					}
-					
+
 					// for orconn-status
 					$line = $response_lines [$index];
 					if ($line [3] == '+') {
@@ -3439,7 +3474,7 @@ if ($tc) {
 							echo "0\n";
 						$index ++;
 					}
-					
+
 					// for circuit-status
 					$line = $response_lines [$index];
 					if ($line [3] == '+') {
@@ -3461,7 +3496,7 @@ if ($tc) {
 						} else
 							echo "0\n";
 					}
-					
+
 					// for ns/all
 					$num = 0;
 					$output_lines = array ();
@@ -3469,7 +3504,7 @@ if ($tc) {
 							0,
 							1,
 							2,
-							3 
+							3
 					) )) // v3 directory style
 					{
 						$response_lines = exec_command_lines ( 'getinfo ns/all' );
@@ -3523,7 +3558,7 @@ if ($tc) {
 					foreach ( $output_lines as $line ) {
 						echo $line, "\n";
 					}
-						
+
 					// for asynchronous events
 					// $time_start is the time to start recording events in
 					// miliseconds
@@ -3533,7 +3568,7 @@ if ($tc) {
 									= filter_var ( $_POST ['time_start'], FILTER_VALIDATE_INT ))
 									!== false) && ($time_start > $now) &&
 							($time_start < $now + update_status_interval)) {
-						
+
 						echo "\n";
 						$response = exec_command ( 'setevents bw info notice warn err' );
 						while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
@@ -3551,60 +3586,127 @@ if ($tc) {
 						}
 					} else {
 							// If $time_start is not in the right range, it is reset.
-						echo 'a', $now + update_status_interval * 1.25, "\n";
+						echo 'a', $now + update_status_time_reset, "\n";
 					}
-					
+
 					close_tc ();
 					exit ();
+
 				case 'geoip':
 					/*
-					 * $_POST['ip_addr'] should be IP addresses seperated by ";".
-					 * The respnse for each IP address is a 2-letter country code.
+					 * $_POST['ip_addr'] should be IP addresses seperated by
+					 * ";".
+					 * The respnse for each IP address is a 2-letter country
+					 * code.
 					 * There are no seperators.
+					 * 
+					 * Geoip data is retrived from the following sources. The
+					 * first available is used.
+					 * 	ip-to-country from tor
+					 * 	php's geoip_country_code_by_name function
+					 * 	the operating system's geoiplookup or geoiplookup6
+					 * 	command
 					 */
+
 					header ( 'Content-type: text/plain' );
 					$command = 'getinfo';
 					$valid_addr_index = array ();
 					$valid_addr_length = array ();
+					$valid_addr = array ();
 					$valid_addr_num = 0;
 					$country = array ();
 					if (isset ( $_POST ['ip_addr'] )) {
 						$num = 0;
 						foreach ( explode ( ";", $_POST ['ip_addr'] ) as $a ) {
 							if ($b [0] == '[') {
-								if ($b = filter_var ( strstr ( substr ( $b, 1 ), ']', 1 ), FILTER_VALIDATE_IP )) {
-									$command .= " ip-to-country/$b";
+								if ($ip = filter_var ( strstr ( substr ( $b, 1 ), ']', 1 ), FILTER_VALIDATE_IP )) {
+									$command .= " ip-to-country/$ip";
 									$valid_addr_index [] = $num;
-									$valid_addr_length [] = strlen ( $b );
+									$valid_addr_length [] = strlen ( $ip );
+									$valid_addr[]=$ip;
 									$valid_addr_num ++;
 								}
-							} elseif ($b = filter_var ( $a, FILTER_VALIDATE_IP )) {
-								$command .= " ip-to-country/$b";
+							} elseif ($ip = filter_var ( $a, FILTER_VALIDATE_IP )) {
+								$command .= " ip-to-country/$ip";
 								$valid_addr_index [] = $num;
-								$valid_addr_length [] = strlen ( $b );
+								$valid_addr_length [] = strlen ( $ip );
+								$valid_addr[]=$ip;
 								$valid_addr_num ++;
 							}
-							$country [$num] = '??';
+							$country_codes [$num] = '??';
 							$num ++;
 						}
 						if ($valid_addr_num) {
 							$response_lines = exec_command_lines ( $command );
 							$a = 0;
 							foreach ( $response_lines as $line ) {
-								$b = substr ( $line, $valid_addr_length [$a] + 19, 2 );
-								if (strlen ( $b ) == 2)
-									$country [$valid_addr_index [$a]] = $b;
+								$country_code = substr ( $line, $valid_addr_length [$a] + 19, 2 );
+								if ((strlen ( $country_code ) == 2) && ($country_code != '??')) {
+									$country_codes [$valid_addr_index [$a]] = $country_code;
+								} else if (function_exists ( 'geoip_country_code_by_name' ) && $country_code = geoip_country_code_by_name ( $ip ))
+									$country_codes [$valid_addr_index [$a]] = $country_code;
+								else {
+									if (filter_var ( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 )) {
+										if (! $geoiplookup_command_available) {
+											$geoiplookup_command_available = shell_exec ( 'geoiplookup 8.8.8.8' ) ? 1 : 2;
+										}
+										if ($geoiplookup_command_available == 1) {
+											$geoip_output = shell_exec ( "geoiplookup $ip" );
+											if ((substr ( $geoip_output, 0, 23 ) == 'GeoIP Country Edition: ') && ($geoip_output [25] == ',')) {
+												$country_codes [$valid_addr_index [$a]] = substr ( $geoip_output, 23, 2 );
+											}
+										}
+									} else {
+										if (! $geoiplookup6_command_available) {
+											$geoiplookup6_command_available = shell_exec ( 'geoiplookup6 2001:4860:4860::8888' ) ? 1 : 2;
+										}
+										if ($geoiplookup6_command_available == 1) {
+											$geoip_output = shell_exec ( "geoiplookup6 $ip" );
+											if ((substr ( $geoip_output, 0, 26 ) == 'GeoIP Country V6 Edition: ') && ($geoip_output [28] == ',')) {
+												$country_codes [$valid_addr_index [$a]] = substr ( $geoip_output, 26, 2 );
+											}
+										}
+									}
+								}
 								if (++ $a == $valid_addr_num)
 									break;
 							}
 						}
-						foreach ( $country as $a )
-							echo $a;
+						foreach ( $country_codes as $country_code )
+							echo $country_code;
 					}
 					close_tc ();
 					exit ();
+				case 'get_bandwidth_history':
+					/*
+					 * The first line of response is a number in decimal n.
+					 * The next n lines are 2 decimal numbers seperated by ",".
+					 * The first is download rate. The second is upload rate.
+					 * Each line represents 1 second. They are in chronological
+					 * order.
+					 * Line breaks are "\n".
+					 */
+
+					if (compare_version ( array (
+							0,
+							2,
+							6,
+							3 
+					) )) {
+						$response = exec_command ( 'getinfo bw-event-cache' );
+						if (substr ( $response, 0, 19 ) == '250-bw-event-cache=') {
+							$output_lines = explode ( ' ', strstr ( substr ( $response, 19 ), "\r", 1 ) );
+							echo count ( $output_lines ), "\n";
+							foreach ( $output_lines as $line )
+								echo $line, "\n";
+						} else
+							echo "0\n";
+					} else
+						echo "0\n";
+					close_tc ();
+					exit ();
 			}
-			
+
 			// to get all tor options
 			$response_lines = exec_command_lines ( 'getinfo config/names' );
 			unset ( $response_lines [0] ); // first line of response "250+config/names=\r\n" is skipped
@@ -3624,7 +3726,7 @@ if ($tc) {
 				$tor_options_type [] = $c;
 				$tor_options_number ++;
 			}
-			
+
 			// to get values of the options
 			$response_lines = exec_command_lines ( "getconf " . implode ( ' ', $tor_options_name ) );
 			for($a = 0; $a < $tor_options_number; $a ++) {
@@ -3636,13 +3738,13 @@ if ($tc) {
 				else
 					$tor_options_value [$a] = false;
 			}
-			
+
 			// to get default values of the options
 			if (compare_version ( array (
 					0,
 					2,
 					4,
-					1 
+					1
 			) )) {
 				foreach ( exec_command_lines ( 'getinfo config/defaults' ) as $line ) {
 					if ($line [0] == '.')
@@ -3655,7 +3757,7 @@ if ($tc) {
 					else
 						$tor_options_default_value [$name] = '<p class="tor_option_description"><b>Default value from tor:</b></p><p class="tor_option_description_indented">' . htmlspecialchars ( $value ) . '</p>';
 				}
-				
+
 				foreach ( $tor_options_default_value as $name => $value ) {
 					if (isset ( $tor_options_description [$name] ))
 						$tor_options_description [$name] .= $value;
@@ -3766,6 +3868,7 @@ for($a = 0; $a < $b; $a ++)
 	echo '4294967295,';
 ?>
 ,4294967295]];
+
 tor_options_number = <?=$tor_options_number?>;
 
 //the names of the options
@@ -3783,6 +3886,8 @@ foreach ( $tor_options_name as $b ) {
 ];
 
 update_status_interval=<?=update_status_interval?>;
+
+update_status_timeout=<?=update_status_timeout?>;
 
 bandwidth_data_size=<?=bandwidth_data_size?>;
 
@@ -4023,26 +4128,26 @@ messages_data_size=<?=messages_data_size?>;
 			<text x="60" y="200" class="bandwidth_graph_label">B/s</text>
 			<text x="60" y="275" class="bandwidth_graph_label">B/s</text>
 			<text x="60" y="350" class="bandwidth_graph_label">B/s</text>
-			
+
 			<!-- The order of these numbers is important. -->
-			<text x="15" y="350"
+			<text x="10" y="350"
 				class="bandwidth_graph_label bandwidth_graph_label_y_number">0</text>
-			<text x="15" y="275"
+			<text x="10" y="275"
 				class="bandwidth_graph_label bandwidth_graph_label_y_number">1</text>
-			<text x="15" y="200"
+			<text x="10" y="200"
 				class="bandwidth_graph_label bandwidth_graph_label_y_number">2</text>
-			<text x="15" y="125"
+			<text x="10" y="125"
 				class="bandwidth_graph_label bandwidth_graph_label_y_number">3</text>
-			<text x="15" y="50"
+			<text x="10" y="50"
 				class="bandwidth_graph_label bandwidth_graph_label_y_number">4</text>
-			
+
 			<text x="215" y="382" class="bandwidth_graph_label">s</text>
 			<text x="315" y="382" class="bandwidth_graph_label">s</text>
 			<text x="415" y="382" class="bandwidth_graph_label">s</text>
 			<text x="515" y="382" class="bandwidth_graph_label">s</text>
 			<text x="615" y="382" class="bandwidth_graph_label">s</text>
 			<text x="700" y="382" class="bandwidth_graph_label">s</text>
-			
+
 			<!-- The order of these numbers is important. -->
 			<text x="675" y="382"
 				class="bandwidth_graph_label bandwidth_graph_label_x_number">0</text>
@@ -4056,7 +4161,7 @@ messages_data_size=<?=messages_data_size?>;
 				class="bandwidth_graph_label bandwidth_graph_label_x_number">40.00</text>
 			<text x="160" y="382"
 				class="bandwidth_graph_label bandwidth_graph_label_x_number">50.00</text>
-			
+
 			<text x="100" y="404" class="bandwidth_graph_current_download_rate">current download rate:</text>
 			<text x="300" y="404" class="bandwidth_graph_current_download_rate"
 				id="bandwidth_graph_current_download_rate_number">0</text>
@@ -4312,7 +4417,7 @@ foreach ( $tor_options_name as $a => $b ) {
 							id="connection_auth_method_password_show_password"
 							onchange="if(this.checked)connection_auth_method_password_password.type='text';else connection_auth_method_password_password.type='password';">
 						</td>
-				
+
 				</tbody>
 				<tbody id="connection_auth_method_cookie"
 					<?php if($tc_connection_auth!=tc_connection_auth_cookie)echo 'style="display:none;"';?>>

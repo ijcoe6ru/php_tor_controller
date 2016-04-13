@@ -10,14 +10,10 @@
  * 
  * Algorithms were taken from Julienne Walker:
  * http://eternallyconfuzzled.com/jsw_home.aspx
- * 
- * It is modified. Each node has the attribute country. find will return country
- * if data is found.
  */
 
-function Node(data, country) {
+function Node(data) {
     this.data = data;
-    this.country = country;
     this.left = null;
     this.right = null;
     this.red = true;
@@ -45,12 +41,12 @@ function RBTree(comparator) {
 RBTree.prototype = new TreeBase();
 
 // returns true if inserted, false if duplicate
-RBTree.prototype.insert = function(data, country) {
+RBTree.prototype.insert = function(data) {
     var ret = false;
 
     if(this._root === null) {
         // empty tree
-        this._root = new Node(data, country);
+        this._root = new Node(data);
         ret = true;
         this.size++;
     }
@@ -71,7 +67,7 @@ RBTree.prototype.insert = function(data, country) {
         while(true) {
             if(node === null) {
                 // insert new node at the bottom
-                node = new Node(data, country);
+                node = new Node(data);
                 p.set_child(dir, node);
                 ret = true;
                 this.size++;
