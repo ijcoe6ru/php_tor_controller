@@ -80,7 +80,7 @@ function bandwidth_graph_y_numbers_update() {
 function custom_command_request(command, handler) {
 	$.post(php_tor_controller_url, {
 		'action' : 'custom_command',
-		'custom_command_command' : custom_command_command
+		'custom_command_command' : command
 	}, handler);
 }
 
@@ -836,9 +836,9 @@ function update_status_handle(data) {
 									}
 									last_bandwidth_time = new_bandwidth_time;
 
-									bandwidth_graph_current_download_rate_numbe
+									bandwidth_graph_current_download_rate_number
 											.innerHTML = String(download);
-									bandwidth_graph_current_upload_rate_numbe
+									bandwidth_graph_current_upload_rate_number
 											.innerHTML = String(upload);
 								}
 							}
@@ -958,7 +958,7 @@ function update_status() {
 	 * number of concurrent requests only includes the requests triggered by the
 	 * function update_status.
 	 */
-	if (concurrent_requests_num < 2) {
+	if (concurrent_requests_num < 3) {
 		concurrent_requests_num++;
 		$.ajax({
 			type : 'POST',
