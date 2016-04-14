@@ -9,7 +9,7 @@ define ( 'config_file_path', 'config.php' );
 define ( 'update_status_interval', 2000 );
 
 // timeout for update_status in miliseconds
-define ( 'update_status_timeout', 4000 );
+define ( 'update_status_timeout', 5000 );
 
 // time added to now when setting new update_status_interval in miliseconds
 define ( 'update_status_time_reset', 2500 );
@@ -45,19 +45,20 @@ $tor_version_string = '';
 
 /*
  * geoiplookup_command_available indicates whether the geoiplookup command is
- * available. 0 means not determined. 1 means available. 2 means not available. 
+ * available. 0 means not determined. 1 means available. 2 means not available.
  */
 $geoiplookup_command_available = 0;
 
 /*
  * geoiplookup6_command_available indicates whether the geoiplookup6 command is
- * available. 0 means not determined. 1 means available. 2 means not available. 
+ * available. 0 means not determined. 1 means available. 2 means not available.
  */
 $geoiplookup6_command_available = 0;
 
 /*
  * The descriptions are from tor (1) man page.
- * The authors are Roger Dingledine [arma at mit.edu], Nick Mathewson [nickm at alum.mit.edu].
+ * The authors are Roger Dingledine [arma at mit.edu],
+ * Nick Mathewson [nickm at alum.mit.edu].
  */
 $tor_options_description = array (
 		'BandwidthRate' => '<p class="tor_option_description"><b>BandwidthRate
@@ -2752,7 +2753,8 @@ day for signing.)</p>'
 
 /*
  * The descriptions are from tor (1) man page.
- * The authors are Roger Dingledine [arma at mit.edu], Nick Mathewson [nickm at alum.mit.edu].
+ * The authors are Roger Dingledine [arma at mit.edu],
+ * Nick Mathewson [nickm at alum.mit.edu].
  */
 $tor_options_categories = array (
 		array (
@@ -3075,19 +3077,22 @@ function get_response() {
 			$code_space = substr ( $response, 0, 3 ) . ' ';
 			$pos_new_line = 0;
 			while ( 1 ) {
-				while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false ) {
+				while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line ))
+						!== false ) {
 					$pos_new_line = $tmp + 2;
 					$pre = substr ( $response, $pos_new_line, 4 );
 					if ($pre == $code_space) {
 						// to make sure the next line is empty
-						if (($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false) {
+						if (($tmp = strpos ( $response, "\r\n", $pos_new_line ))
+								!== false) {
 							$pos_new_line = $tmp + 2;
 							if ($pos_new_line == strlen ( $response ))
 								return $response;
 						}
 					}
 				}
-				if ($response_new_chunk = fread ( $tc, tc_max_response_chunk_length ))
+				if ($response_new_chunk
+						= fread ( $tc, tc_max_response_chunk_length ))
 					$response .= $response_new_chunk;
 				else
 					return $response;
@@ -3113,23 +3118,34 @@ function close_tc() {
 }
 
 function is_invalid_var($var, $min, $max) {
-	return (! isset ( $var )) || (filter_var ( $var, FILTER_VALIDATE_INT ) === false) || $var < $min || $var > $max;
+	return (! isset ( $var ))
+			|| (filter_var ( $var, FILTER_VALIDATE_INT ) === false)
+			|| ($var < $min)
+			|| ($var > $max);
 }
 
 function update_config() {
-	global $error_message, $require_login, $tc_connection_method, $tc_connection_hostname, $tc_connection_auth;
-	$config_contents = '<?php $require_login=' . $require_login . ';$tc_connection_method=' . $tc_connection_method . ';$tc_connection_hostname=' . var_export ( $tc_connection_hostname, 1 ) . ';$tc_connection_auth=' . $tc_connection_auth;
+	global $error_message, $require_login, $tc_connection_method,
+			$tc_connection_hostname, $tc_connection_auth;
+	$config_contents = '<?php $require_login=' . $require_login
+			. ';$tc_connection_method=' . $tc_connection_method
+			. ';$tc_connection_hostname='
+			. var_export ( $tc_connection_hostname, 1 )
+			. ';$tc_connection_auth=' . $tc_connection_auth;
 	if ($tc_connection_auth) {
 		global $tc_connection_password;
-		$config_contents .= ';$tc_connection_password=' . var_export ( $tc_connection_password, 1 );
+		$config_contents .= ';$tc_connection_password='
+				. var_export ( $tc_connection_password, 1 );
 	}
 	if ($tc_connection_method == tc_connection_method_network) {
 		global $tc_connection_secure, $tc_connection_port;
-		$config_contents .= ';$tc_connection_secure=' . $tc_connection_secure . ';$tc_connection_port=' . $tc_connection_port;
+		$config_contents .= ';$tc_connection_secure=' . $tc_connection_secure
+		. ';$tc_connection_port=' . $tc_connection_port;
 	}
 	if ($require_login) {
 		global $login_password_hash;
-		$config_contents .= ';$login_password_hash=' . var_export ( $login_password_hash, 1 );
+		$config_contents .= ';$login_password_hash='
+				. var_export ( $login_password_hash, 1 );
 	}
 	if (! file_put_contents ( config_file_path, $config_contents . ";\n" ))
 		$error_message .= '<p>Error writing to config file</p>';
@@ -3198,7 +3214,8 @@ function output_parse_dir() {
  * portlist
  * version
  * Seperators are "\t".
- * It returns a string containing these lines when encountering the next router status entry.
+ * It returns a string containing these lines when encountering the next router
+ * status entry.
  */
 function parse_dir($line) {
 	global $parse_dir_data;
@@ -3275,7 +3292,8 @@ function parse_dir($line) {
  * portlist
  * version
  * Seperators are "\t".
- * It returns a string containing these lines when encountering the next router status entry.
+ * It returns a string containing these lines when encountering the next router
+ * status entry.
  */
 function parse_dir_v1($line) {
 	global $parse_dir_data;
@@ -3398,7 +3416,9 @@ if ($require_login) {
 	if (! isset ( $_SESSION ['php_tor_controller_loggedin'] ))
 		$_SESSION ['php_tor_controller_loggedin'] = false;
 	if ($action == 'login') {
-		if (isset ( $_POST ['login_password'] ) && password_verify ( $_POST ['login_password'], $login_password_hash ))
+		if (isset ( $_POST ['login_password'] )
+				&& password_verify ( $_POST ['login_password'],
+						$login_password_hash ))
 			$_SESSION ['php_tor_controller_loggedin'] = true;
 		else
 			$error_message .= '<p>Login information wrong</p>';
@@ -3461,11 +3481,13 @@ switch ($action) {
 		switch ($_POST ['connection_auth_method']) {
 			case 'password' :
 				$tc_connection_auth = tc_connection_auth_password;
-				$tc_connection_password = $_POST ['connection_auth_method_password_password'];
+				$tc_connection_password
+						= $_POST ['connection_auth_method_password_password'];
 				break;
 			case 'cookie' :
 				$tc_connection_auth = tc_connection_auth_cookie;
-				$tc_connection_password = $_POST ['connection_auth_method_cookie_path'];
+				$tc_connection_password
+						= $_POST ['connection_auth_method_cookie_path'];
 				break;
 			default :
 				$tc_connection_auth = tc_connection_auth_none;
@@ -3474,13 +3496,15 @@ switch ($action) {
 		break;
 	case 'change_login_method' :
 		$action = '';
-		if ($_POST ['login_method_require_login'] == 'login_method_require_login') {
+		if ($_POST ['login_method_require_login']
+				== 'login_method_require_login') {
 			if (isset ( $_POST ['login_method_password'] )) {
 				if (! $require_login) {
 					$require_login = 1;
 				} else
 					$_SESSION ['php_tor_controller_loggedin'] = false;
-				$login_password_hash = password_hash ( $_POST ['login_method_password'], PASSWORD_DEFAULT );
+				$login_password_hash = password_hash (
+						$_POST ['login_method_password'], PASSWORD_DEFAULT );
 				$update_config = 1;
 				goto check_login;
 			} else
@@ -3545,29 +3569,35 @@ if ($tc_connection_method == tc_connection_method_network) {
 	$tc_url = "unix://$tc_connection_hostname";
 }
 
-$tc = stream_socket_client ( $tc_url, $errno, $errstr );
+$tc = @stream_socket_client ( $tc_url, $errno, $errstr );
 
 if ($tc) {
 	$auth_success = 1;
 	switch ($tc_connection_auth) {
 		case tc_connection_auth_password :
-			$command = 'authenticate "' . addslashes ( $tc_connection_password ) . '"';
+			$command = 'authenticate "' . addslashes ( $tc_connection_password )
+					. '"';
 			break;
 		case tc_connection_auth_cookie :
 			if (file_exists ( $tc_connection_password )) {
-				if (($tc_connection_auth_cookie_file = fopen ( $tc_connection_password, "rb" )) === false) {
+				if (($tc_connection_auth_cookie_file
+						= fopen ( $tc_connection_password, "rb" )) === false) {
 					$error_message .= '<p>Error opening cookie file</p>';
 					$auth_success = 0;
 				} else {
-					if (($tc_connection_auth_cookie_contents = stream_get_contents ( $tc_connection_auth_cookie_file )) === false) {
+					if (($tc_connection_auth_cookie_contents
+							= stream_get_contents
+							( $tc_connection_auth_cookie_file )) === false) {
 						$error_message .= '<p>Error reading cookie file</p>';
 						$auth_success = 0;
 					} else
-						$command = "authenticate " . bin2hex ( $tc_connection_auth_cookie_contents );
+						$command = "authenticate " . bin2hex
+								( $tc_connection_auth_cookie_contents );
 					fclose ( $tc_connection_auth_cookie_file );
 				}
 			} else {
-				$error_message .= '<p>Cookie file does not exist or insufficient permission</p>';
+				$error_message .=
+						'<p>Cookie file does not exist or insufficient permission</p>';
 				$auth_success = 0;
 			}
 			break;
@@ -3577,7 +3607,8 @@ if ($tc) {
 	if ($auth_success) {
 		if (($response = exec_command ( $command )) == "250 OK\r\n") {
 			// to get the current version
-			$tor_version_string = strstr ( substr ( exec_command ( 'getinfo version' ), 12 ), "\r", 1 );
+			$tor_version_string = strstr ( substr ( exec_command (
+					'getinfo version' ), 12 ), "\r", 1 );
 			$a = explode ( '.', $tor_version_string );
 			for($b = 0; $b < 4; $b ++)
 				$tor_version [$b] = ( int ) $a [$b];
@@ -3658,16 +3689,20 @@ if ($tc) {
 
 					echo $tor_version_string,"\n";
 
-					$response_lines = exec_command_lines ( 'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status' );
+					$response_lines = exec_command_lines (
+'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status'
+							);
 					for($index = 0; $index < 7; $index ++)
-						echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
+						echo substr ( strstr ( $response_lines [$index], '=' ),
+								1 ), "\n";
 
 					// for stream-status
 					$line = $response_lines [$index];
 					if ($line [3] == '+') {
 						$response_lines_1 = array ();
 						$num = 0;
-						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+						for($index++; ($line=$response_lines[$index])[0] != '.';
+								$index++){
 							$response_lines_1 [] = $line;
 							$num ++;
 						}
@@ -3689,7 +3724,8 @@ if ($tc) {
 					if ($line [3] == '+') {
 						$response_lines_1 = array ();
 						$num = 0;
-						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+						for($index++; ($line=$response_lines[$index])[0] != '.';
+								$index++){
 							$response_lines_1 [] = $line;
 							$num ++;
 						}
@@ -3714,7 +3750,8 @@ if ($tc) {
 					if ($line [3] == '+') {
 						$response_lines_1 = array ();
 						$num = 0;
-						for($index++;($line=$response_lines[$index])[0] != '.';$index++){
+						for($index++; ($line=$response_lines[$index])[0] != '.';
+								$index++){
 							$response_lines_1 [] = $line;
 							$num ++;
 						}
@@ -3741,7 +3778,8 @@ if ($tc) {
 							3
 					) )) // v3 directory style
 					{
-						$response_lines = exec_command_lines ( 'getinfo ns/all' );
+						$response_lines
+								= exec_command_lines ( 'getinfo ns/all' );
 						$line = $response_lines [0];
 						if ($line [3] == '+') {
 							unset ( $response_lines [0] );
@@ -3765,7 +3803,8 @@ if ($tc) {
 						}
 					} else // v1 directory style
 					{
-						$response_lines = exec_command_lines ( 'getinfo network-status' );
+						$response_lines = exec_command_lines ( 
+								'getinfo network-status' );
 						$line = $response_lines [0];
 						if ($line [3] == '+') {
 							unset ( $response_lines [0] );
@@ -3799,13 +3838,16 @@ if ($tc) {
 					$now = ( int ) (microtime ( 1 ) * 1000);
 					if (isset ( $_POST ['time_start'] ) &&
 							(($time_start
-									= filter_var ( $_POST ['time_start'], FILTER_VALIDATE_INT ))
+									= filter_var ( $_POST ['time_start'],
+											FILTER_VALIDATE_INT ))
 									!== false) && ($time_start > $now) &&
 							($time_start < $now + update_status_interval)) {
 
 						echo "\n";
-						$response = exec_command ( 'setevents bw info notice warn err' );
-						while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
+						$response = exec_command (
+								'setevents bw info notice warn err' );
+						while ( ($now = ( int ) (microtime ( 1 ) * 1000))
+								< $time_start )
 							$response = get_response ();
 
 						// $time_stop is the time to stop recording events in
@@ -3819,7 +3861,7 @@ if ($tc) {
 							$now = ( int ) (microtime ( 1 ) * 1000);
 						}
 					} else {
-							// If $time_start is not in the right range, it is reset.
+						// If $time_start is not in the right range, it is reset.
 						echo 'a', $now + update_status_time_reset, "\n";
 					}
 
@@ -3853,14 +3895,18 @@ if ($tc) {
 						$num = 0;
 						foreach ( explode ( ";", $_POST ['ip_addr'] ) as $a ) {
 							if ($b [0] == '[') {
-								if ($ip = filter_var ( strstr ( substr ( $b, 1 ), ']', 1 ), FILTER_VALIDATE_IP )) {
+								if ($ip	= filter_var ( strstr ( substr (
+										$b, 1 ), ']', 1 ), FILTER_VALIDATE_IP,
+										FILTER_FLAG_NO_PRIV_RANGE
+										| FILTER_FLAG_NO_RES_RANGE )) {
 									$command .= " ip-to-country/$ip";
 									$valid_addr_index [] = $num;
 									$valid_addr_length [] = strlen ( $ip );
-									$valid_addr[]=$ip;
+									$valid_addr [] = $ip;
 									$valid_addr_num ++;
 								}
-							} elseif ($ip = filter_var ( $a, FILTER_VALIDATE_IP )) {
+							} elseif ($ip
+									= filter_var ( $a, FILTER_VALIDATE_IP )) {
 								$command .= " ip-to-country/$ip";
 								$valid_addr_index [] = $num;
 								$valid_addr_length [] = strlen ( $ip );
@@ -3881,56 +3927,68 @@ if ($tc) {
 										&& ($country_code != '??')) {
 									$country_codes [$valid_addr_index [$a]]
 											= $country_code;
-								} else if (function_exists
-										( 'geoip_country_code_by_name' )
-										&& $country_code
-										= geoip_country_code_by_name ( $ip ))
-									$country_codes [$valid_addr_index [$a]]
-										= $country_code;
-								else {
-									if (filter_var ( $ip, FILTER_VALIDATE_IP,
-													FILTER_FLAG_IPV4 )) {
-										if (! $geoiplookup_command_available) {
-											$geoiplookup_command_available
-													= shell_exec
-													( 'geoiplookup 8.8.8.8' )
-															? 1 : 2;
-										}
-										if ($geoiplookup_command_available == 1)
-										{
-											$geoip_output =
-													shell_exec
-													( "geoiplookup $ip" );
-											if ((substr ( $geoip_output, 0, 23 )
-													== 'GeoIP Country Edition: ')
-													&& ($geoip_output [25]
-															== ','))
-											{
-												$country_codes
-														[$valid_addr_index [$a]]
-														= substr
-														( $geoip_output, 23, 2 );
+								} else {
+									$ip = $valid_addr [$a];
+									if (function_exists (
+											'geoip_country_code_by_name' )
+											&& $country_code
+											= geoip_country_code_by_name (
+													$ip ))
+										$country_codes [$valid_addr_index [$a]]
+													= $country_code;
+									else {
+										if (filter_var ( $ip,
+												FILTER_VALIDATE_IP,
+												FILTER_FLAG_IPV4 )) {
+											if (! $geoiplookup_command_available
+													) {
+												$geoiplookup_command_available
+														= shell_exec 
+														('geoiplookup 8.8.8.8' )
+														? 1 : 2;
 											}
-										}
-									} else {
-										if (! $geoiplookup6_command_available) {
-											$geoiplookup6_command_available =
-													shell_exec ( 'geoiplookup6 2001:4860:4860::8888' )
-															? 1 : 2;
-										}
-										if ($geoiplookup6_command_available
-												== 1) {
-											$geoip_output = shell_exec
-													( "geoiplookup6 $ip" );
-											if ((substr ( $geoip_output, 0, 26 )
-													==
-													'GeoIP Country V6 Edition: ')
-													&&
-													($geoip_output [28] == ','))
-											{
-												$country_codes 
-												[$valid_addr_index [$a]]
-												= substr ( $geoip_output, 26, 2 );
+											if ($geoiplookup_command_available
+													== 1) {
+												$geoip_output = shell_exec (
+														"geoiplookup $ip" );
+												if ((substr ( $geoip_output, 0,
+														23 ) ==
+													'GeoIP Country Edition: ')
+														&& ($geoip_output [25]
+																== ',')) {
+													$country_codes
+															[$valid_addr_index
+																	[$a]]
+															= substr
+															( $geoip_output, 23,
+																	2 );
+												}
+											}
+										} else {
+											if (!
+												$geoiplookup6_command_available
+													) {
+												$geoiplookup6_command_available
+														= shell_exec (
+											'geoiplookup6 2001:4860:4860::8888'
+																) ? 1 : 2;
+											}
+											if ($geoiplookup6_command_available
+													== 1) {
+												$geoip_output = shell_exec (
+														"geoiplookup6 $ip" );
+												if ((substr ( $geoip_output, 0,
+														26 ) == 
+													'GeoIP Country V6 Edition: '
+														) && ($geoip_output [28]
+																== ',')) {
+													$country_codes
+															[$valid_addr_index
+																	[$a]] 
+															= substr (
+																$geoip_output,
+																	26, 2 );
+												}
 											}
 										}
 									}
@@ -3999,10 +4057,13 @@ if ($tc) {
 			}
 
 			// to get values of the options
-			$response_lines = exec_command_lines ( "getconf " . implode ( ' ', $tor_options_name ) );
+			$response_lines = exec_command_lines ( "getconf "
+					. implode ( ' ', $tor_options_name ) );
 			for($a = 0; $a < $tor_options_number; $a ++) {
-				// each line is 250+<option name>, so we have $tor_options_name_length+4
-				$b = substr ( $response_lines [$a], $tor_options_name_length [$a] + 4 );
+				// each line is 250+<option name>, so we have
+				// $tor_options_name_length+4
+				$b = substr ( $response_lines [$a],
+						$tor_options_name_length [$a] + 4 );
 				if ($b)
 					$tor_options_value [$a] = substr ( $b, 1 );
 					// false means default
@@ -4017,16 +4078,24 @@ if ($tc) {
 					4,
 					1
 			) )) {
-				foreach ( exec_command_lines ( 'getinfo config/defaults' ) as $line ) {
+				foreach ( exec_command_lines ( 'getinfo config/defaults' )
+						as $line ) {
 					if ($line [0] == '.')
 						break;
 					$a = strpos ( $line, ' ' );
 					$name = substr ( $line, 0, $a );
 					$value = substr ( $line, $a + 1 );
 					if (isset ( $tor_options_default_value [$name] ))
-						$tor_options_default_value [$name] .= '<p class="tor_option_description_indented">' . htmlspecialchars ( $value ) . '</p>';
+						$tor_options_default_value [$name]
+								.= '<p class="tor_option_description_indented">'
+								. htmlspecialchars ( $value ) . '</p>';
 					else
-						$tor_options_default_value [$name] = '<p class="tor_option_description"><b>Default value from tor:</b></p><p class="tor_option_description_indented">' . htmlspecialchars ( $value ) . '</p>';
+						$tor_options_default_value [$name] =
+								'<p class="tor_option_description">
+									<b>Default value from tor:</b>
+								</p>
+								<p class="tor_option_description_indented">'
+								. htmlspecialchars ( $value ) . '</p>';
 				}
 
 				foreach ( $tor_options_default_value as $name => $value ) {
@@ -4044,7 +4113,9 @@ if ($tc) {
 						$response
 					</p>
 					<p>
-						<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
+						<a href=\"#connecting_to_tor\">
+							go to settings for connecting to tor
+						</a>
 					</p>";
 		}
 	} else {
@@ -4063,7 +4134,9 @@ if ($tc) {
 				$errno $errstr
 			</p>
 			<p>
-				<a href=\"#connecting_to_tor\">go to settings for connecting to tor</a>
+				<a href=\"#connecting_to_tor\">
+					go to settings for connecting to tor
+				</a>
 			</p>";
 }
 
@@ -4166,7 +4239,8 @@ messages_data_size=<?=messages_data_size?>;
 	</script>
 </head>
 <body onload="body_loaded();">
-	<div id="command_" onclick="this.style.display='none';$('#command_response_box *').remove();">
+	<div id="command_" onclick=
+		"this.style.display='none';$('#command_response_box *').remove();">
 		<table>
 			<tbody>
 				<tr id="command_prompt_top"></tr>
@@ -4358,7 +4432,11 @@ messages_data_size=<?=messages_data_size?>;
 		</div>
 
 		<h2 id="bandwidth_graph_title">bandwidth graph</h2>
-		<!-- Only bandwidth_data_size seconds of bandwidth information is stored. -->
+
+		<!--
+			Only bandwidth_data_size seconds of bandwidth information is stored.
+		-->
+
 		<input type="number" value="10" step="1" min="1"
 			onchange="a=this.value;
 			bandwidth_graph_px_per_ms=a/1000;
@@ -4400,17 +4478,17 @@ messages_data_size=<?=messages_data_size?>;
 			<text x="60" y="275" class="bandwidth_graph_label">B/s</text>
 			<text x="60" y="350" class="bandwidth_graph_label">B/s</text>
 
-			<!-- The order of these numbers is important. -->
-			<text x="10" y="350"
-				class="bandwidth_graph_label bandwidth_graph_label_y_number">0</text>
-			<text x="10" y="275"
-				class="bandwidth_graph_label bandwidth_graph_label_y_number">1</text>
-			<text x="10" y="200"
-				class="bandwidth_graph_label bandwidth_graph_label_y_number">2</text>
-			<text x="10" y="125"
-				class="bandwidth_graph_label bandwidth_graph_label_y_number">3</text>
-			<text x="10" y="50"
-				class="bandwidth_graph_label bandwidth_graph_label_y_number">4</text>
+			<!-- The order of these numbers shouldn't be altered. -->
+			<text x="10" y="350" class=
+				"bandwidth_graph_label bandwidth_graph_label_y_number">0</text>
+			<text x="10" y="275" class=
+				"bandwidth_graph_label bandwidth_graph_label_y_number">1</text>
+			<text x="10" y="200" class=
+				"bandwidth_graph_label bandwidth_graph_label_y_number">2</text>
+			<text x="10" y="125" class=
+				"bandwidth_graph_label bandwidth_graph_label_y_number">3</text>
+			<text x="10" y="50" class=
+				"bandwidth_graph_label bandwidth_graph_label_y_number">4</text>
 
 			<text x="215" y="382" class="bandwidth_graph_label">s</text>
 			<text x="315" y="382" class="bandwidth_graph_label">s</text>
@@ -4420,42 +4498,53 @@ messages_data_size=<?=messages_data_size?>;
 			<text x="700" y="382" class="bandwidth_graph_label">s</text>
 
 			<!-- The order of these numbers is important. -->
-			<text x="675" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">0</text>
-			<text x="560" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">10.00</text>
-			<text x="460" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">20.00</text>
-			<text x="360" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">30.00</text>
-			<text x="260" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">40.00</text>
-			<text x="160" y="382"
-				class="bandwidth_graph_label bandwidth_graph_label_x_number">50.00</text>
+			<text x="675" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">0</text>
+			<text x="560" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">
+				10.00</text>
+			<text x="460" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">
+				20.00</text>
+			<text x="360" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">
+				30.00</text>
+			<text x="260" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">
+				40.00</text>
+			<text x="160" y="382" class=
+				"bandwidth_graph_label bandwidth_graph_label_x_number">
+				50.00</text>
 
-			<text x="100" y="404" class="bandwidth_graph_current_download_rate">current download rate:</text>
+			<text x="100" y="404" class="bandwidth_graph_current_download_rate">
+				current download rate:</text>
 			<text x="300" y="404" class="bandwidth_graph_current_download_rate"
 				id="bandwidth_graph_current_download_rate_number">0</text>
-			<text x="376" y="404" class="bandwidth_graph_current_download_rate">B/s</text>
-			<text x="100" y="422" class="bandwidth_graph_current_upload_rate">current upload rate:</text>
+			<text x="376" y="404" class="bandwidth_graph_current_download_rate">
+				B/s</text>
+			<text x="100" y="422" class="bandwidth_graph_current_upload_rate">
+				current upload rate:</text>
 			<text x="300" y="422" class="bandwidth_graph_current_upload_rate"
 				id="bandwidth_graph_current_upload_rate_number">0</text>
-			<text x="376" y="422" class="bandwidth_graph_current_upload_rate">B/s</text>
+			<text x="376" y="422" class="bandwidth_graph_current_upload_rate">
+				B/s</text>
 		</svg>
 
 		<h2 id="message_log_title">message log</h2>
-		show severities: <input type="checkbox" id="messages_severity_0"
-			onchange="update_messages_display(0,this.checked);"> <label
-			for="messages_severity_0">INFO</label> <input type="checkbox"
-			id="messages_severity_1"
-			onchange="update_messages_display(1,this.checked);" checked> <label
-			for="messages_severity_1">NOTICE</label> <input type="checkbox"
-			id="messages_severity_2"
-			onchange="update_messages_display(2,this.checked);" checked> <label
-			for="messages_severity_2">WARN</label> <input type="checkbox"
-			id="messages_severity_3"
-			onchange="update_messages_display(3,this.checked);" checked> <label
-			for="messages_severity_3">ERR</label> <br>
+		show severities:
+		<input type="checkbox" id="messages_severity_0"
+			onchange="update_messages_display(0,this.checked);">
+		<label for="messages_severity_0">INFO</label>
+		<input type="checkbox" id="messages_severity_1"
+			onchange="update_messages_display(1,this.checked);" checked>
+		<label for="messages_severity_1">NOTICE</label>
+		<input type="checkbox" id="messages_severity_2"
+			onchange="update_messages_display(2,this.checked);" checked>
+		<label for="messages_severity_2">WARN</label>
+		<input type="checkbox" id="messages_severity_3"
+			onchange="update_messages_display(3,this.checked);" checked>
+		<label for="messages_severity_3">ERR</label>
+		<br>
 		<button type="button"
 			onclick="var a;
 			while(a=messages_table_tbody.firstChild)
@@ -4474,8 +4563,9 @@ messages_data_size=<?=messages_data_size?>;
 		</div>
 
 		<h1 id="new_identity">new identity</h1>
-		<button type="button" onclick="custom_command_popup('signal newnym');">New
-			Identity</button>
+		<button type="button" onclick="custom_command_popup('signal newnym');">
+			New Identity
+		</button>
 
 		<h1 id="custom_command">custom command</h1>
 
@@ -4492,8 +4582,8 @@ messages_data_size=<?=messages_data_size?>;
 
 		<h1 id="tor_settings">tor settings</h1>
 
-		<label for="tor_options_select_category"> show category </label> <select
-			id="tor_options_select_category"
+		<label for="tor_options_select_category"> show category </label>
+		<select	id="tor_options_select_category"
 			onchange="tor_options_change_category(this.value);">
 			<option value="0">GENERAL OPTIONS</option>
 			<option value="1">CLIENT OPTIONS</option>
@@ -4520,26 +4610,35 @@ foreach ( $tor_options_name as $a => $b ) {
 				<tbody class="tor_options_table_row">
 				<tr>
 					<td class="tor_options_name">
-							<?=$b?>
-						</td>
+						<?=$b?>
+					</td>
 					<td>
-							<?=$type?>
-						</td>
-					<td><input type="checkbox" class="tor_options_default_checkbox"
-						id="tor_options_default_checkbox_<?=$a?>"
-						<?php if($tor_options_value[$a]===false)echo 'checked';?>></td>
-					<td><label for="tor_options_default_checkbox_<?=$a?>"> use default
-					</label></td>
+						<?=$type?>
+					</td>
+					<td>
+						<input type="checkbox"
+							class="tor_options_default_checkbox"
+							id="tor_options_default_checkbox_<?=$a?>"
+							<?php if($tor_options_value[$a]===false)
+								echo 'checked';?>>
+					</td>
+					<td>
+						<label for="tor_options_default_checkbox_<?=$a?>">
+							use default
+						</label>
+					</td>
 					<td>
 <?php
 	if (($value = $tor_options_value [$a]) === false)
 		$value = '';
 	switch ($type) {
 		case 'Integer' :
-			echo '<input class="tor_options_value" value="', $value, '" type="number" min="0">';
+			echo '<input class="tor_options_value" value="', $value,
+					'" type="number" min="0">';
 			break;
 		case 'SignedInteger' :
-			echo '<input class="tor_options_value" value="', $value, '" type="number">';
+			echo '<input class="tor_options_value" value="', $value,
+					'" type="number">';
 			break;
 		case 'Boolean' :
 			echo '<select class="tor_options_value"><option value="0"';
@@ -4554,35 +4653,46 @@ foreach ( $tor_options_name as $a => $b ) {
 		case 'Boolean+Auto' :
 			echo '<select class="tor_options_value"><option value="auto"';
 			if ($value === 'auto')
-				echo ' selected>auto</option><option value="0">0</option><option value="1"';
+				echo
+		' selected>auto</option><option value="0">0</option><option value="1"';
 			elseif ($value === '0')
-				echo '>auto</option><option value="0" selected>0</option><option value="1"';
+				echo
+		'>auto</option><option value="0" selected>0</option><option value="1"';
 			elseif ($value === '1')
-				echo '>auto</option><option value="0"></option>0<option value="1" selected';
+				echo
+		'>auto</option><option value="0"></option>0<option value="1" selected';
 			else
-				echo '>auto</option><option value="0"></option>0<option value="1"';
+				echo
+				'>auto</option><option value="0"></option>0<option value="1"';
 			echo '>1</option></select>';
 			break;
 		default :
-			echo '<input class="tor_options_value" type="text" value="', $value, '">';
+			echo '<input class="tor_options_value" type="text" value="', $value,
+					'">';
 	}
 	?>
-						</td>
+					</td>
 <?php
 	if (isset ( $tor_options_description [$b] )) {
 		?>
-							<td><a class="tor_option_show_description"
-						id="tor_options_show_description_<?=$a?>"
-						href="javascript:void(0)"
-						onclick="tor_options_description_<?=$a?>.style.display='table-row';
-									tor_options_hide_description_<?=$a?>.style.display='inline';
-									this.style.display='none';">show description</a> <a
-						class="tor_option_hide_description"
-						id="tor_options_hide_description_<?=$a?>"
-						href="javascript:void(0)"
-						onclick="tor_options_description_<?=$a?>.style.display='none';
-									tor_options_show_description_<?=$a?>.style.display='inline';
-									this.style.display='none';">hide description</a></td>
+					<td>
+						<a class="tor_option_show_description"
+							id="tor_options_show_description_<?=$a?>"
+							href="javascript:void(0)"
+							onclick="tor_options_description_<?=$a?>.
+										style.display='table-row';
+								tor_options_hide_description_<?=$a?>.
+										style.display='inline';
+								this.style.display='none';">show description</a>
+						<a class="tor_option_hide_description"
+							id="tor_options_hide_description_<?=$a?>"
+							href="javascript:void(0)"
+							onclick="tor_options_description_<?=$a?>.
+										style.display='none';
+								tor_options_show_description_<?=$a?>.
+										style.display='inline';
+								this.style.display='none';">
+							hide description</a></td>
 				</tr>
 				<tr id="tor_options_description_<?=$a?>"
 					class="tor_option_description_block">
@@ -4599,7 +4709,9 @@ foreach ( $tor_options_name as $a => $b ) {
 }
 ?>
 		</table>
-		<button type="button" onclick="update_settings_handle();">update settings</button>
+		<button type="button" onclick="update_settings_handle();">
+			update settings
+		</button>
 		<button type="button" onclick="custom_command_popup('saveconf');">
 			save settings to torrc</button>
 
@@ -4611,93 +4723,234 @@ foreach ( $tor_options_name as $a => $b ) {
 			<table border="1">
 				<tbody>
 					<tr>
-						<td><label for="connection_method"> connection method </label></td>
-						<td><select id="connection_method" name="connection_method"
-							onchange="if(this.value=='tcp'){connection_tcp.style.display='table-row-group';connection_unix_socket.style.display='none';}else{connection_tcp.style.display='none';connection_unix_socket.style.display='table-row-group';}">
+						<td>
+							<label for="connection_method">
+								connection method
+							</label>
+						</td>
+						<td>
+							<select id="connection_method"
+								name="connection_method"
+								onchange="if(this.value=='tcp') {
+										connection_tcp.style.display
+												='table-row-group';
+										connection_unix_socket.style.display
+												='none';
+									} else {
+										connection_tcp.style.display='none';
+										connection_unix_socket.style.display
+												='table-row-group';
+									}">
 								<option value="tcp"
-									<?php if($tc_connection_method==tc_connection_method_network)echo 'selected';?>>tcp</option>
+									<?php
+									if( $tc_connection_method
+											== tc_connection_method_network )
+										echo 'selected';?>>
+									tcp
+								</option>
 								<option value="unix_socket"
-									<?php if($tc_connection_method==tc_connection_method_unix_socket)echo 'selected';?>>unix
-									socket</option>
+									<?php
+									if($tc_connection_method
+											== tc_connection_method_unix_socket
+											)
+										echo 'selected';?>>
+									unix socket
+								</option>
 						</select></td>
 					</tr>
 				</tbody>
 				<tbody id="connection_tcp"
-					<?php if($tc_connection_method!=tc_connection_method_network)echo 'style="display:none;"';?>>
+					<?php if($tc_connection_method
+							!= tc_connection_method_network)
+						echo 'style="display:none;"';?>>
 					<tr>
-						<td><label for="connection_tcp_hostname"> host </label></td>
-						<td><input id="connection_tcp_hostname"
-							name="connection_tcp_hostname" type="text"
-							value="<?=htmlspecialchars($connection_tcp_hostname)?>"></td>
+						<td>
+							<label for="connection_tcp_hostname">host</label>
+						</td>
+						<td>
+							<input id="connection_tcp_hostname"
+								name="connection_tcp_hostname" type="text"
+								value="<?=htmlspecialchars(
+										$connection_tcp_hostname)?>">
+						</td>
 					</tr>
 					<tr>
 						<td><label for="connection_tcp_port"> port </label></td>
-						<td><input id="connection_tcp_port" name="connection_tcp_port"
-							type="text" value="<?=$connection_tcp_port?>"></td>
+						<td>
+							<input id="connection_tcp_port"
+								name="connection_tcp_port"
+								type="text" value="<?=$connection_tcp_port?>">
+						</td>
 					</tr>
 					<tr>
-						<td><label for="connection_tcp_secure"> ssl or tls </label></td>
-						<td><select id="connection_tcp_secure"
-							name="connection_tcp_secure">
-								<option value="none"
-									<?php if($connection_tcp_secure==tc_connection_secure_none)echo 'selected';?>>none</option>
-								<option value="ssl"
-									<?php if($connection_tcp_secure==tc_connection_secure_ssl)echo 'selected';?>>ssl</option>
-								<option value="tls"
-									<?php if($connection_tcp_secure==tc_connection_secure_tls)echo 'selected';?>>tls</option>
-						</select></td>
+						<td>
+							<label for="connection_tcp_secure">
+								ssl or tls
+							</label>
+						</td>
+						<td>
+							<select id="connection_tcp_secure"
+								name="connection_tcp_secure">
+									<option value="none"
+										<?php
+										if( $connection_tcp_secure
+												== tc_connection_secure_none)
+											echo 'selected';
+										?>>
+										none
+									</option>
+									<option value="ssl"
+										<?php
+										if( $connection_tcp_secure
+												== tc_connection_secure_ssl)
+											echo 'selected';
+										?>>
+										ssl
+									</option>
+									<option value="tls"
+										<?php
+											if($connection_tcp_secure
+													== tc_connection_secure_tls)
+												echo 'selected';
+										?>>
+										tls
+									</option>
+							</select>
+						</td>
 					</tr>
 				</tbody>
 				<tbody id="connection_unix_socket"
-					<?php if($tc_connection_method!=tc_connection_method_unix_socket)echo 'style="display:none;"';?>>
+					<?php
+						if($tc_connection_method
+								!= tc_connection_method_unix_socket)
+							echo 'style="display:none;"';
+					?>>
 					<tr>
-						<td><label for="connection_unix_socket_path"> path </label></td>
-						<td><input id="connection_unix_socket_path"
-							name="connection_unix_socket_path" type="text"
-							value="<?=htmlspecialchars($connection_unix_socket_path)?>"></td>
+						<td>
+							<label for="connection_unix_socket_path">
+								path
+							</label>
+						</td>
+						<td>
+							<input id="connection_unix_socket_path"
+								name="connection_unix_socket_path" type="text"
+								value="<?=htmlspecialchars(
+										$connection_unix_socket_path)?>">
+						</td>
 					</tr>
 				</tbody>
 				<tbody>
 					<tr>
-						<td><label for="connection_auth_method"> auth method </label></td>
-						<td><select id="connection_auth_method"
-							name="connection_auth_method"
-							onchange="if(this.value=='none'){connection_auth_method_password.style.display='none';connection_auth_method_cookie.style.display='none';}else if(this.value=='password'){connection_auth_method_password.style.display='table-row-group';connection_auth_method_cookie.style.display='none';}else{connection_auth_method_password.style.display='none';connection_auth_method_cookie.style.display='table-row-group';}">
+						<td>
+							<label for="connection_auth_method">
+								auth method
+							</label>
+						</td>
+						<td>
+							<select id="connection_auth_method"
+								name="connection_auth_method"
+								onchange="if(this.value=='none') {
+										connection_auth_method_password.style.
+												display='none';
+										connection_auth_method_cookie.style.
+												display='none';
+										} else if(this.value=='password') {
+											connection_auth_method_password.
+													style.display
+													='table-row-group';
+											connection_auth_method_cookie.style.
+													display='none';
+										} else {
+											connection_auth_method_password.
+													style.display='none';
+											connection_auth_method_cookie.style.
+													display='table-row-group';
+										}">
 								<option value="none"
-									<?php if($tc_connection_auth==tc_connection_auth_none)echo 'selected';?>>none</option>
+									<?php
+									if($tc_connection_auth
+											== tc_connection_auth_none)
+										echo 'selected';
+									?>>
+									none
+								</option>
 								<option value="password"
-									<?php if($tc_connection_auth==tc_connection_auth_password)echo 'selected';?>>password</option>
+									<?php
+									if($tc_connection_auth
+											== tc_connection_auth_password)
+										echo 'selected';
+									?>>
+									password
+								</option>
 								<option value="cookie"
-									<?php if($tc_connection_auth==tc_connection_auth_cookie)echo 'selected';?>>cookie</option>
-						</select></td>
+									<?php
+									if($tc_connection_auth
+											== tc_connection_auth_cookie)
+										echo 'selected';
+									?>>
+									cookie
+								</option>
+							</select>
+						</td>
 					</tr>
 				</tbody>
 				<tbody id="connection_auth_method_password"
-					<?php if($tc_connection_auth!=tc_connection_auth_password)echo 'style="display:none;"';?>>
+					<?php
+					if($tc_connection_auth != tc_connection_auth_password)
+						echo 'style="display:none;"';
+					?>>
 					<tr>
-						<td><label for="connection_auth_method_password_password">
-								password </label></td>
-						<td><input id="connection_auth_method_password_password"
-							name="connection_auth_method_password_password" type="password"
-							value="<?=htmlspecialchars($connection_auth_password)?>"></td>
+						<td>
+							<label
+								for="connection_auth_method_password_password">
+								password
+							</label>
+						</td>
+						<td>
+							<input id="connection_auth_method_password_password"
+								name="connection_auth_method_password_password"
+								type="password"
+								value="<?=htmlspecialchars(
+										$connection_auth_password)?>">
+						</td>
 					</tr>
 					<tr>
-						<td><label for="connection_auth_method_password_show_password">
-								show password </label></td>
-						<td><input type="checkbox"
-							id="connection_auth_method_password_show_password"
-							onchange="if(this.checked)connection_auth_method_password_password.type='text';else connection_auth_method_password_password.type='password';">
+						<td>
+							<label for=
+								"connection_auth_method_password_show_password">
+								show password
+							</label>
 						</td>
-
+						<td>
+							<input type="checkbox"
+								id="connection_auth_method_password_show_password"
+								onchange="if(this.checked)
+										connection_auth_method_password_password
+												.type='text';
+									else
+										connection_auth_method_password_password
+												.type='password';">
+						</td>
 				</tbody>
 				<tbody id="connection_auth_method_cookie"
-					<?php if($tc_connection_auth!=tc_connection_auth_cookie)echo 'style="display:none;"';?>>
+					<?php
+					if($tc_connection_auth != tc_connection_auth_cookie)
+						echo 'style="display:none;"';
+					?>>
 					<tr>
-						<td><label for="connection_auth_method_cookie_cookie_path"> cookie
-								path </label></td>
-						<td><input id="connection_auth_method_cookie_cookie_path"
-							name="connection_auth_method_cookie_path" type="text"
-							value="<?=htmlspecialchars($connection_auth_cookie)?>"></td>
+						<td>
+							<label
+								for="connection_auth_method_cookie_cookie_path">
+								cookie path
+							</label>
+						</td>
+						<td>
+							<input id="connection_auth_method_cookie_cookie_path"
+								name="connection_auth_method_cookie_path"
+								type="text"
+								value="<?=htmlspecialchars(
+										$connection_auth_cookie)?>">
+						</td>
 					</tr>
 				</tbody>
 			</table>
@@ -4710,21 +4963,35 @@ foreach ( $tor_options_name as $a => $b ) {
 			<table border="1">
 				<tbody>
 					<tr>
-						<td><label for="login_method_require_login"> require logging in </label>
+						<td>
+							<label for="login_method_require_login">
+								require logging in
+							</label>
 						</td>
 						<td><input id="login_method_require_login"
 							name="login_method_require_login" type="checkbox"
 							value="login_method_require_login"
-							onchange="if(this.checked)login_method_more.style.display='table-row-group';else login_method_more.style.display='none';"
-							<?php if($require_login)echo 'checked';?>></td>
+							onchange="if(this.checked)
+									login_method_more.style.display
+											='table-row-group';
+								else
+									login_method_more.style.display='none';"
+							<?php if($require_login)echo 'checked';?>>
+						</td>
 					</tr>
 				</tbody>
 				<tbody id="login_method_more"
 					<?php if(!$require_login)echo 'style="display:none;"';?>>
 					<tr>
-						<td><label for="login_method_password"> password </label></td>
-						<td><input id="login_method_password" name="login_method_password"
-							type="password"></td>
+						<td>
+							<label for="login_method_password">
+								password
+							</label>
+						</td>
+						<td>
+							<input id="login_method_password"
+								name="login_method_password" type="password">
+						</td>
 					</tr>
 				</tbody>
 			</table>
