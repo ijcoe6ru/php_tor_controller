@@ -3473,8 +3473,10 @@ function update_status_function() {
 	echo $tor_version_string, "\n";
 
 	$response_lines = exec_command_lines (
-'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status'
-			);
+			'getinfo network-liveness status/bootstrap-phase status/circuit-e' .
+			'stablished status/enough-dir-info status/good-server-descriptor ' .
+			'status/accepted-server-descriptor status/reachability-succeeded ' .
+			'stream-status orconn-status circuit-status' );
 
 	for($index = 0; $index < 7; $index ++)
 		echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
@@ -3997,7 +3999,7 @@ if ($tc) {
 				}
 			} else {
 				$error_message .=
-						'<p>Cookie file does not exist or insufficient permission</p>';
+				'<p>Cookie file does not exist or insufficient permission</p>';
 				$auth_success = 0;
 			}
 			break;

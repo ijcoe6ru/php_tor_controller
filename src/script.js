@@ -116,7 +116,8 @@ function custom_command_handle_key(event) {
 					while ((current_line = data.indexOf("\r\n", last_line))
 							!= -1) {
 						new_custom_command_output_line
-								= $('<div class="console_output_line"></div>')[0];
+								= $('<div class="console_output_line"></div>')
+								[0];
 						new_custom_command_output_line.textContent = data
 								.substr(last_line, current_line - last_line);
 						last_line = current_line + 2;
@@ -349,7 +350,8 @@ function update_status_handle(data) {
 					for (var a = 1; a < 9; a++) {
 						current_line = data_from_server_list.data.indexOf('\n',
 								last_line);
-						status_fields[a].textContent = data_from_server_list.data
+						status_fields[a].textContent
+								= data_from_server_list.data
 								.substr(last_line, current_line - last_line);
 						last_line = current_line + 1;
 					}
@@ -361,7 +363,8 @@ function update_status_handle(data) {
 							last_line, current_line - last_line));
 					if (isNaN(num)) {
 						update_status_handle_running = 0;
-						console.log("invalid value for number of lines for stream status\n"
+						console.log(
+						"invalid value for number of lines for stream status\n"
 										+ line);
 						return;
 					}
@@ -427,7 +430,8 @@ function update_status_handle(data) {
 					if (isNaN(num)) {
 						update_status_handle_running = 0;
 						console
-								.log("invalid value for number of lines for orconn status\n"
+								.log(
+						"invalid value for number of lines for orconn status\n"
 										+ line);
 						return;
 					}
@@ -493,7 +497,8 @@ function update_status_handle(data) {
 					if (isNaN(num)) {
 						update_status_handle_running = 0;
 						console
-								.log("invalid value for number of lines for circuit status\n"
+								.log(
+						"invalid value for number of lines for circuit status\n"
 										+ line);
 						return;
 					}
@@ -560,7 +565,8 @@ function update_status_handle(data) {
 					if (isNaN(num)) {
 						update_status_handle_running = 0;
 						console
-								.log("invalid value for number of lines for or status\n"
+								.log(
+							"invalid value for number of lines for or status\n"
 										+ line);
 						return;
 					}
@@ -653,7 +659,8 @@ function update_status_handle(data) {
 									f = data_from_server_list.data.indexOf(
 											'\t', e);
 									new_element_1 = $('<td></td>')[0];
-									new_element_1.textContent = data_from_server_list.data
+									new_element_1.textContent
+											= data_from_server_list.data
 											.substr(e, f - e);
 									new_element.append(new_element_1);
 									e = f + 1;
@@ -769,7 +776,8 @@ function update_status_handle(data) {
 								.substr(last_line, a - last_line));
 						if (isNaN(time)) {
 							console
-									.log("invalid value for time for asynchronous event\n"
+									.log(
+							"invalid value for time for asynchronous event\n"
 											+ tmpstr);
 						} else {
 							a++;
@@ -785,14 +793,16 @@ function update_status_handle(data) {
 										= data_from_server_list.data
 										.substr(a, b - a)))) {
 									console
-											.log("invalid value for download rate\n"
+											.log(
+											"invalid value for download rate\n"
 													+ tmpstr);
 								} else if (isNaN(upload = Number(tmpstr
 										= data_from_server_list.data
 										.substr(b + 1, current_line - b - 1))))
 								{
 									console
-											.log("invalid value for upload rate\n"
+											.log(
+											"invalid value for upload rate\n"
 													+ tmpstr);
 								} else {
 									if (bandwidth_last_index)
@@ -823,7 +833,8 @@ function update_status_handle(data) {
 										if (new_bandwidth_time
 												!= last_bandwidth_time + 1) {
 											console
-													.log("time of receiving bandwidth data not consecutive\nold: "
+													.log(
+					"time of receiving bandwidth data not consecutive\nold: "
 															+
 															last_bandwidth_time
 															+ "\nnew: "
@@ -849,7 +860,8 @@ function update_status_handle(data) {
 								while (1) {
 									if (c == 4) {
 										console
-												.log("unrecognized name for asynchronous event\n"
+												.log(
+									"unrecognized name for asynchronous event\n"
 														+ event_name);
 										break;
 									}
@@ -1019,7 +1031,8 @@ function body_loaded() {
 							if (isNaN(num = Number(tmpstr = data.substr(0,
 									current_line)))) {
 								console
-										.log("invalid value for number of bandwidth data\n"
+										.log(
+								"invalid value for number of bandwidth data\n"
 												+ tmpstr);
 							} else {
 								var upload, download, now;
@@ -1034,7 +1047,8 @@ function body_loaded() {
 											.substr(last_line, comma
 													- last_line)))) {
 										console
-												.log("invalid value for download rate\n"
+												.log(
+											"invalid value for download rate\n"
 														+ tmpstr);
 										break;
 									}
@@ -1043,7 +1057,8 @@ function body_loaded() {
 											.substr(comma, current_line
 													- comma)))) {
 										console
-												.log("invalid value for upload rate\n"
+												.log(
+											"invalid value for upload rate\n"
 														+ tmpstr);
 										break;
 									}
