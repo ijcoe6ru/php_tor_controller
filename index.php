@@ -3397,13 +3397,13 @@ function output_circuit_status($line) {
 
 function custom_command_function() {
 	global $_POST;
-	
+
 	header ( 'Content-type: text/plain' );
-	
+
 	if (isset ( $_POST ['custom_command_command'] )) {
 		echo exec_command ( $_POST ['custom_command_command'] );
 	}
-	
+
 	close_tc ();
 	exit ();
 }
@@ -3465,20 +3465,20 @@ function update_status_function() {
 	 * 	err
 	 * Line breaks are "\n".
 	 */
-	
+
 	global $_POST, $tor_version_string;
 
 	header ( 'Content-type: text/plain' );
-	
+
 	echo $tor_version_string, "\n";
-	
+
 	$response_lines = exec_command_lines (
 'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status'
 			);
-	
+
 	for($index = 0; $index < 7; $index ++)
 		echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
-		
+
 	// for stream-status
 	$line = $response_lines [$index];
 	if ($line [3] == '+') {
@@ -3500,7 +3500,7 @@ function update_status_function() {
 			echo "0\n";
 		$index ++;
 	}
-	
+
 	// for orconn-status
 	$line = $response_lines [$index];
 	if ($line [3] == '+') {
@@ -3525,7 +3525,7 @@ function update_status_function() {
 			echo "0\n";
 		$index ++;
 	}
-	
+
 	// for circuit-status
 	$line = $response_lines [$index];
 	if ($line [3] == '+') {
@@ -3547,7 +3547,7 @@ function update_status_function() {
 		} else
 			echo "0\n";
 	}
-	
+
 	// for ns/all
 	$num = 0;
 	$output_lines = array ();
@@ -3609,7 +3609,7 @@ function update_status_function() {
 	foreach ( $output_lines as $line ) {
 		echo $line, "\n";
 	}
-	
+
 	// for asynchronous events
 	// $time_start is the time to start recording events in miliseconds
 	$now = ( int ) (microtime ( 1 ) * 1000);
@@ -3623,7 +3623,7 @@ function update_status_function() {
 		$response = exec_command ( 'setevents bw info notice warn err' );
 		while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
 			$response = get_response ();
-			
+
 		// $time_stop is the time to stop recording events in miliseconds
 		$time_stop = $time_start + update_status_interval;
 		while ( $now < $time_stop ) {
@@ -3637,7 +3637,7 @@ function update_status_function() {
 		// If $time_start is not in the right range, it is reset.
 		echo 'a', $now + update_status_time_reset, "\n";
 	}
-	
+
 	close_tc ();
 	exit ();
 }
@@ -3657,25 +3657,25 @@ function geoip_function() {
 	 * the operating system's geoiplookup or geoiplookup6
 	 * command
 	 */
-	
+
 	global $_POST;
-	
+
 	/*
 	 * geoiplookup_command_available indicates whether the geoiplookup command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
 	 */
 	$geoiplookup_command_available = 0;
-	
+
 	/*
 	 * geoiplookup6_command_available indicates whether the geoiplookup6 command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
 	 */
 	$geoiplookup6_command_available = 0;
-	
+
 	header ( 'Content-type: text/plain' );
-	
+
 	$command = 'getinfo';
 	$valid_addr_index = array ();
 	$valid_addr_length = array ();
@@ -3767,7 +3767,7 @@ function geoip_function() {
 		foreach ( $country_codes as $country_code )
 			echo $country_code;
 	}
-	
+
 	close_tc ();
 	exit ();
 }
@@ -4012,7 +4012,7 @@ if ($tc) {
 			$a = explode ( '.', $tor_version_string );
 			for($b = 0; $b < 4; $b ++)
 				$tor_version [$b] = ( int ) $a [$b];
-				
+
 				// actions to be resolved afted connecting to tor control port
 			if (isset ( $action_functions [$action] ))
 				call_user_func ( $action_functions [$action] );

@@ -42,15 +42,6 @@ var bandwidth_data,
 		data_from_server_list = null,
 		data_from_server_list_end = null,
 		update_status_handle_running = 0,
- 		geoip_tree = new RBTree(
-		function(a, b) {
-			var ip_a=a.ip,ip_b=b.ip;
-			if (ip_a < ip_b)
-				return 1;
-			if (ip_a > ip_b)
-				return -1;
-			return 0;
-		}),
 		update_status_time_start = 0,
 		messsages_data,
 		messages_data_size,
@@ -60,6 +51,14 @@ var bandwidth_data,
 		concurrent_requests_num = 0,
 		last_bandwidth_time,
 		bandwidth_started = 0; // timestamp of last bandwidth data in seconds
+
+function strcmp(a, b) {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+var geoip_tree = new RBTree(function(a, b) {
+	return strcmp(a.ip, b.ip);
+});
 
 function bandwidth_graph_y_numbers_update() {
 	var a = bandwidth_graph_max_rate >> 2;
