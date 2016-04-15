@@ -43,17 +43,13 @@ $tor_options_number = 0;
 $tor_options_default_value = array ();
 $tor_version_string = '';
 
-/*
- * geoiplookup_command_available indicates whether the geoiplookup command is
- * available. 0 means not determined. 1 means available. 2 means not available.
- */
-$geoiplookup_command_available = 0;
-
-/*
- * geoiplookup6_command_available indicates whether the geoiplookup6 command is
- * available. 0 means not determined. 1 means available. 2 means not available.
- */
-$geoiplookup6_command_available = 0;
+// the functions to handle actions
+$action_functions = array (
+		'custom_command' => 'custom_command_function',
+		'update_status' => 'update_status_function',
+		'geoip' => 'geoip_function',
+		'get_bandwidth_history' => 'get_bandwidth_history_function'
+);
 
 /*
  * The descriptions are from tor (1) man page.
@@ -3399,10 +3395,414 @@ function output_circuit_status($line) {
 	echo "\n";
 }
 
-if (isset ( $_POST ['action'] ))
-	$action = $_POST ['action'];
-elseif (isset ( $_GET ['action'] ))
-	$action = $_GET ['action'];
+function custom_command_function() {
+	global $_POST;
+	
+	header ( 'Content-type: text/plain' );
+	
+	if (isset ( $_POST ['custom_command_command'] )) {
+		echo exec_command ( $_POST ['custom_command_command'] );
+	}
+	
+	close_tc ();
+	exit ();
+}
+
+function update_status_function() {
+	/*
+	 * data will be empty if something fails on the server side.
+	 *
+	 * The first 8 lines are the following status of tor:
+	 * 	version
+	 * 	network-liveness
+	 * 	status/bootstrap-phase
+	 * 	status/circuit-established
+	 * 	status/enough-dir-info
+	 * 	status/good-server-descriptor
+	 * 	status/accepted-server-descriptor
+	 * 	status/reachability-succeeded
+	 * The next line is a number num in decimal meaning the lines for stream
+	 * status.
+	 * The next num lines are stream status, with " " at the end of each line.
+	 * The next line is a number num in decimal meaning the number of lines for
+	 * OR connection status.
+	 * The next num lines are OR connection status, with " " at the end of each
+	 * line.
+	 * The next line is a number num in decimal meaning the lines for circuit
+	 * status.
+	 * The next num lines are circuit status. Each entry is
+	 * 	id
+	 * 	status
+	 * 	build flag
+	 * 	time created
+	 * 	path
+	 * Seperators are " ".
+	 * The next line is a number num in decimal meaning the entries for OR
+	 * status.
+	 * The next num lines are OR status. Each entry is
+	 * 	nickname
+	 * 	identity
+	 * 	digest
+	 * 	publication
+	 * 	ip
+	 * 	ORPort
+	 * 	DIRPort
+	 * 	IPv6 addresses, each ending with ';'
+	 * 	flags
+	 * 	version
+	 * 	bandwidth
+	 * 	portlist
+	 * Seperators are "\t".
+	 * Next line is "a" followed by a timestamp in miliseconds in decimal
+	 * meaning the next time_start or empty.
+	 * Each of the next lines is a timestamp in miliseconds in decimal followed
+	 * by a line of response for one of the following asynchronous events
+	 * without "650" at the beginning of the line.
+	 * 	bw
+	 * 	info
+	 * 	notice
+	 * 	warn
+	 * 	err
+	 * Line breaks are "\n".
+	 */
+	
+	global $_POST, $tor_version_string;
+
+	header ( 'Content-type: text/plain' );
+	
+	echo $tor_version_string, "\n";
+	
+	$response_lines = exec_command_lines (
+'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status'
+			);
+	
+	for($index = 0; $index < 7; $index ++)
+		echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
+		
+	// for stream-status
+	$line = $response_lines [$index];
+	if ($line [3] == '+') {
+		$response_lines_1 = array ();
+		$num = 0;
+		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
+			$response_lines_1 [] = $line;
+			$num ++;
+		}
+		$index ++;
+		echo $num, "\n";
+		foreach ( $response_lines_1 as $line )
+			echo $line, " \n";
+	} else {
+		$line = substr ( $line, 18 );
+		if (isset ( $line [0] )) {
+			echo "1\n", $line, " \n";
+		} else
+			echo "0\n";
+		$index ++;
+	}
+	
+	// for orconn-status
+	$line = $response_lines [$index];
+	if ($line [3] == '+') {
+		$response_lines_1 = array ();
+		$num = 0;
+		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
+			$response_lines_1 [] = $line;
+			$num ++;
+		}
+		$index ++;
+		echo $num, "\n";
+		foreach ( $response_lines_1 as $line ) {
+			$a = explode ( ' ', $line );
+			echo $a [1], ' ', $a [0], " \n";
+		}
+	} else {
+		$line = substr ( $line, 18 );
+		if (isset ( $line [0] )) {
+			$a = explode ( ' ', $line );
+			echo "1\n", $a [1], ' ', $a [0], " \n";
+		} else
+			echo "0\n";
+		$index ++;
+	}
+	
+	// for circuit-status
+	$line = $response_lines [$index];
+	if ($line [3] == '+') {
+		$response_lines_1 = array ();
+		$num = 0;
+		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
+			$response_lines_1 [] = $line;
+			$num ++;
+		}
+		echo $num, "\n";
+		foreach ( $response_lines_1 as $line ) {
+			output_circuit_status ( $line );
+		}
+	} else {
+		$line = substr ( $line, 19 );
+		if (isset ( $line [0] )) {
+			echo "1\n";
+			output_circuit_status ( $line );
+		} else
+			echo "0\n";
+	}
+	
+	// for ns/all
+	$num = 0;
+	$output_lines = array ();
+	if (compare_version ( array (
+			0,
+			1,
+			2,
+			3 
+	) )) // v3 directory style
+	{
+		$response_lines = exec_command_lines ( 'getinfo ns/all' );
+		$line = $response_lines [0];
+		if ($line [3] == '+') {
+			unset ( $response_lines [0] );
+			foreach ( $response_lines as $line ) {
+				if ($line [0] == '.')
+					break;
+				if ($out = parse_dir ( $line )) {
+					$output_lines [] = $out;
+					$num ++;
+				}
+			}
+			$output_lines [] = output_parse_dir ();
+			$num ++;
+		} else {
+			$line = substr ( $line, 11 );
+			if (isset ( $line [0] )) {
+				parse_dir ( $line );
+				$output_lines [] = output_parse_dir ();
+				$num = 1;
+			}
+		}
+	} else // v1 directory style
+	{
+		$response_lines = exec_command_lines ( 'getinfo network-status' );
+		$line = $response_lines [0];
+		if ($line [3] == '+') {
+			unset ( $response_lines [0] );
+			foreach ( $response_lines as $line ) {
+				if ($line [0] == '.')
+					break;
+				if ($out = parse_dir_v1 ( $line )) {
+					$output_lines [] = $out;
+					$num ++;
+				}
+			}
+			$output_lines [] = output_parse_dir ();
+			$num ++;
+		} else {
+			$line = substr ( $line, 11 );
+			if (isset ( $line [0] )) {
+				parse_dir_v1 ( $line );
+				$output_lines [] = output_parse_dir ();
+				$num = 1;
+			}
+		}
+	}
+	echo $num, "\n";
+	foreach ( $output_lines as $line ) {
+		echo $line, "\n";
+	}
+	
+	// for asynchronous events
+	// $time_start is the time to start recording events in miliseconds
+	$now = ( int ) (microtime ( 1 ) * 1000);
+	if (isset ( $_POST ['time_start'] )
+			&& (($time_start
+					= filter_var ( $_POST ['time_start'], FILTER_VALIDATE_INT ))
+					!== false)
+			&& ($time_start > $now)
+			&& ($time_start < $now + update_status_interval)) {
+		echo "\n";
+		$response = exec_command ( 'setevents bw info notice warn err' );
+		while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
+			$response = get_response ();
+			
+		// $time_stop is the time to stop recording events in miliseconds
+		$time_stop = $time_start + update_status_interval;
+		while ( $now < $time_stop ) {
+			foreach ( explode ( "\r\n", $response ) as $line )
+				if (substr ( $line, 0, 3 ) == '650')
+					echo $now, substr ( $line, 3 ), "\n";
+			$response = get_response ();
+			$now = ( int ) (microtime ( 1 ) * 1000);
+		}
+	} else {
+		// If $time_start is not in the right range, it is reset.
+		echo 'a', $now + update_status_time_reset, "\n";
+	}
+	
+	close_tc ();
+	exit ();
+}
+
+function geoip_function() {
+	/*
+	 * $_POST['ip_addr'] should be IP addresses seperated by
+	 * ";".
+	 * The respnse for each IP address is a 2-letter country
+	 * code.
+	 * There are no seperators.
+	 *
+	 * Geoip data is retrived from the following sources. The
+	 * first available is used.
+	 * ip-to-country from tor
+	 * php's geoip_country_code_by_name function
+	 * the operating system's geoiplookup or geoiplookup6
+	 * command
+	 */
+	
+	global $_POST;
+	
+	/*
+	 * geoiplookup_command_available indicates whether the geoiplookup command
+	 * is available. 0 means not determined. 1 means available. 2 means not
+	 * available.
+	 */
+	$geoiplookup_command_available = 0;
+	
+	/*
+	 * geoiplookup6_command_available indicates whether the geoiplookup6 command
+	 * is available. 0 means not determined. 1 means available. 2 means not
+	 * available.
+	 */
+	$geoiplookup6_command_available = 0;
+	
+	header ( 'Content-type: text/plain' );
+	
+	$command = 'getinfo';
+	$valid_addr_index = array ();
+	$valid_addr_length = array ();
+	$valid_addr = array ();
+	$valid_addr_num = 0;
+	$country_codes = array ();
+	if (isset ( $_POST ['ip_addr'] )) {
+		$num = 0;
+		foreach ( explode ( ";", $_POST ['ip_addr'] ) as $ip ) {
+			if (isset ( $ip [0] )) {
+				if ($ip [0] == '[') {
+					if ($ip = filter_var ( strstr ( substr ( $ip, 1 ), ']', 1 ),
+							FILTER_VALIDATE_IP,
+							FILTER_FLAG_NO_PRIV_RANGE
+							| FILTER_FLAG_NO_RES_RANGE )) {
+						$command .= " ip-to-country/$ip";
+						$valid_addr_index [] = $num;
+						$valid_addr_length [] = strlen ( $ip );
+						$valid_addr [] = $ip;
+						$valid_addr_num ++;
+					}
+				} elseif ($ip = filter_var ( $ip, FILTER_VALIDATE_IP )) {
+					$command .= " ip-to-country/$ip";
+					$valid_addr_index [] = $num;
+					$valid_addr_length [] = strlen ( $ip );
+					$valid_addr [] = $ip;
+					$valid_addr_num ++;
+				}
+			}
+			$country_codes [] = '??';
+			$num ++;
+		}
+		if ($valid_addr_num) {
+			$response_lines = exec_command_lines ( $command );
+			$a = 0;
+			foreach ( $response_lines as $line ) {
+				$country_code
+						= substr ( $line, $valid_addr_length [$a] + 19, 2 );
+				if ((strlen ( $country_code ) == 2) && ($country_code != '??'))
+				{
+					$country_codes [$valid_addr_index [$a]] = $country_code;
+				} else {
+					$ip = $valid_addr [$a];
+					if (function_exists ( 'geoip_country_code_by_name' )
+							&& $country_code
+							= geoip_country_code_by_name ( $ip ))
+						$country_codes [$valid_addr_index [$a]] = $country_code;
+					else {
+						if (filter_var ( $ip, FILTER_VALIDATE_IP,
+								FILTER_FLAG_IPV4 )) {
+							if (! $geoiplookup_command_available) {
+								$geoiplookup_command_available
+										= shell_exec ( 'geoiplookup 8.8.8.8' )
+										? 1 : 2;
+							}
+							if ($geoiplookup_command_available == 1) {
+								$geoip_output
+										= shell_exec ( "geoiplookup $ip" );
+								if ((substr ( $geoip_output, 0, 23 )
+										== 'GeoIP Country Edition: ')
+										&& ($geoip_output [25] == ',')) {
+									$country_codes [$valid_addr_index [$a]]
+											= substr ( $geoip_output, 23, 2 );
+								}
+							}
+						} else {
+							if (! $geoiplookup6_command_available) {
+								$geoiplookup6_command_available = shell_exec (
+										'geoiplookup6 2001:4860:4860::8888' )
+										? 1 : 2;
+							}
+							if ($geoiplookup6_command_available == 1) {
+								$geoip_output
+										= shell_exec ( "geoiplookup6 $ip" );
+								if ((substr ( $geoip_output, 0, 26 )
+										== 'GeoIP Country V6 Edition: ')
+										&& ($geoip_output [28] == ',')) {
+									$country_codes [$valid_addr_index [$a]]
+											= substr ( $geoip_output, 26, 2 );
+								}
+							}
+						}
+					}
+				}
+				if (++ $a == $valid_addr_num)
+					break;
+			}
+		}
+		foreach ( $country_codes as $country_code )
+			echo $country_code;
+	}
+	
+	close_tc ();
+	exit ();
+}
+
+function get_bandwidth_history_function() {
+	/*
+	 * The first line of response is a number in decimal n.
+	 * The next n lines are 2 decimal numbers seperated by ",".
+	 * The first is download rate. The second is upload rate.
+	 * Each line represents 1 second. They are in chronological order.
+	 * Line breaks are "\n".
+	 */
+	if (compare_version ( array (
+			0,
+			2,
+			6,
+			3 
+	) )) {
+		$response = exec_command ( 'getinfo bw-event-cache' );
+		if (substr ( $response, 0, 19 ) == '250-bw-event-cache=') {
+			$output_lines = explode ( ' ', strstr ( substr ( $response, 19 ),
+					"\r", 1 ) );
+			echo count ( $output_lines ), "\n";
+			foreach ( $output_lines as $line )
+				echo $line, "\n";
+		} else
+			echo "0\n";
+	} else
+		echo "0\n";
+	close_tc ();
+	exit ();
+}
+
+if (isset ( $_REQUEST ['action'] ))
+	$action = $_REQUEST ['action'];
 else
 	$action = '';
 
@@ -3612,428 +4012,10 @@ if ($tc) {
 			$a = explode ( '.', $tor_version_string );
 			for($b = 0; $b < 4; $b ++)
 				$tor_version [$b] = ( int ) $a [$b];
-
-			// actions to be resolved afted connecting to tor control port
-			switch ($action) {
-				case '' :
-					break;
-				case 'custom_command' :
-					header ( 'Content-type: text/plain' );
-					if (isset ( $_POST ['custom_command_command'] )) {
-						echo exec_command ( $_POST ['custom_command_command'] );
-					}
-					close_tc ();
-					exit ();
-
-				case 'update_status' :
-					/*
-					 * data will be empty if something fails on the server side.
-					 *
-					 * The first 8 lines are the following status of tor:
-					 * 	version
-					 * 	network-liveness
-					 * 	status/bootstrap-phase
-					 * 	status/circuit-established
-					 * 	status/enough-dir-info
-					 * 	status/good-server-descriptor
-					 * 	status/accepted-server-descriptor
-					 * 	status/reachability-succeeded
-					 * The next line is a number num in decimal meaning the
-					 * lines for stream status.
-					 * The next num lines are stream status, with " " at the end
-					 * of each line.
-					 * The next line is a number num in decimal meaning the
-					 * lines for OR connection status.
-					 * The next num lines are OR connection status, with " " at
-					 * the end of each line.
-					 * The next line is a number num in decimal meaning the
-					 * lines for circuit status.
-					 * The next num lines are circuit status. Each entry is
-					 * 	id
-					 * 	status
-					 * 	build flag
-					 * 	time created
-					 * 	path
-					 * Seperators are " ".
-					 * The next line is a number num in decimal meaning the
-					 * entries for OR status.
-					 * The next num lines are OR status. Each entry is
-					 * 	nickname
-					 * 	identity
-					 * 	digest
-					 * 	publication
-					 * 	ip
-					 * 	ORPort
-					 * 	DIRPort
-					 * 	IPv6 addresses, each ending with ';'
-					 * 	flags
-					 * 	version
-					 * 	bandwidth
-					 * 	portlist
-					 * Seperators are "\t".
-					 * Next line is "a" followed by a timestamp in miliseconds
-					 * in decimal meaning the next time_start or empty.
-					 * Each of the next lines is a timestamp in miliseconds in
-					 * decimal followed by a line of response for one of the
-					 * following asynchronous events without "650" at the
-					 * beginning of the line.
-					 * 	bw
-					 * 	info
-					 * 	notice
-					 * 	warn
-					 * 	err
-					 * Line breaks are "\n".
-					 */
-
-					header ( 'Content-type: text/plain' );
-
-					echo $tor_version_string,"\n";
-
-					$response_lines = exec_command_lines (
-'getinfo network-liveness status/bootstrap-phase status/circuit-established status/enough-dir-info status/good-server-descriptor status/accepted-server-descriptor status/reachability-succeeded stream-status orconn-status circuit-status'
-							);
-					for($index = 0; $index < 7; $index ++)
-						echo substr ( strstr ( $response_lines [$index], '=' ),
-								1 ), "\n";
-
-					// for stream-status
-					$line = $response_lines [$index];
-					if ($line [3] == '+') {
-						$response_lines_1 = array ();
-						$num = 0;
-						for($index++; ($line=$response_lines[$index])[0] != '.';
-								$index++){
-							$response_lines_1 [] = $line;
-							$num ++;
-						}
-						$index ++;
-						echo $num, "\n";
-						foreach ( $response_lines_1 as $line )
-							echo $line, " \n";
-					} else {
-						$line = substr ( $line, 18 );
-						if (isset ( $line [0] )) {
-							echo "1\n", $line, " \n";
-						} else
-							echo "0\n";
-						$index ++;
-					}
-
-					// for orconn-status
-					$line = $response_lines [$index];
-					if ($line [3] == '+') {
-						$response_lines_1 = array ();
-						$num = 0;
-						for($index++; ($line=$response_lines[$index])[0] != '.';
-								$index++){
-							$response_lines_1 [] = $line;
-							$num ++;
-						}
-						$index ++;
-						echo $num, "\n";
-						foreach ( $response_lines_1 as $line ) {
-							$a = explode ( ' ', $line );
-							echo $a [1], ' ', $a [0], " \n";
-						}
-					} else {
-						$line = substr ( $line, 18 );
-						if (isset ( $line [0] )) {
-							$a = explode ( ' ', $line );
-							echo "1\n", $a [1], ' ', $a [0], " \n";
-						} else
-							echo "0\n";
-						$index ++;
-					}
-
-					// for circuit-status
-					$line = $response_lines [$index];
-					if ($line [3] == '+') {
-						$response_lines_1 = array ();
-						$num = 0;
-						for($index++; ($line=$response_lines[$index])[0] != '.';
-								$index++){
-							$response_lines_1 [] = $line;
-							$num ++;
-						}
-						echo $num, "\n";
-						foreach ( $response_lines_1 as $line ) {
-							output_circuit_status ( $line );
-						}
-					} else {
-						$line = substr ( $line, 19 );
-						if (isset ( $line [0] )) {
-							echo "1\n";
-							output_circuit_status ( $line );
-						} else
-							echo "0\n";
-					}
-
-					// for ns/all
-					$num = 0;
-					$output_lines = array ();
-					if (compare_version ( array (
-							0,
-							1,
-							2,
-							3
-					) )) // v3 directory style
-					{
-						$response_lines
-								= exec_command_lines ( 'getinfo ns/all' );
-						$line = $response_lines [0];
-						if ($line [3] == '+') {
-							unset ( $response_lines [0] );
-							foreach ( $response_lines as $line ) {
-								if ($line [0] == '.')
-									break;
-								if ($out = parse_dir ( $line )) {
-									$output_lines [] = $out;
-									$num ++;
-								}
-							}
-							$output_lines [] = output_parse_dir ();
-							$num ++;
-						} else {
-							$line = substr ( $line, 11 );
-							if (isset ( $line [0] )) {
-								parse_dir ( $line );
-								$output_lines [] = output_parse_dir ();
-								$num = 1;
-							}
-						}
-					} else // v1 directory style
-					{
-						$response_lines = exec_command_lines ( 
-								'getinfo network-status' );
-						$line = $response_lines [0];
-						if ($line [3] == '+') {
-							unset ( $response_lines [0] );
-							foreach ( $response_lines as $line ) {
-								if ($line [0] == '.')
-									break;
-								if ($out = parse_dir_v1 ( $line )) {
-									$output_lines [] = $out;
-									$num ++;
-								}
-							}
-							$output_lines [] = output_parse_dir ();
-							$num ++;
-						} else {
-							$line = substr ( $line, 11 );
-							if (isset ( $line [0] )) {
-								parse_dir_v1 ( $line );
-								$output_lines [] = output_parse_dir ();
-								$num = 1;
-							}
-						}
-					}
-					echo $num, "\n";
-					foreach ( $output_lines as $line ) {
-						echo $line, "\n";
-					}
-
-					// for asynchronous events
-					// $time_start is the time to start recording events in
-					// miliseconds
-					$now = ( int ) (microtime ( 1 ) * 1000);
-					if (isset ( $_POST ['time_start'] ) &&
-							(($time_start
-									= filter_var ( $_POST ['time_start'],
-											FILTER_VALIDATE_INT ))
-									!== false) && ($time_start > $now) &&
-							($time_start < $now + update_status_interval)) {
-
-						echo "\n";
-						$response = exec_command (
-								'setevents bw info notice warn err' );
-						while ( ($now = ( int ) (microtime ( 1 ) * 1000))
-								< $time_start )
-							$response = get_response ();
-
-						// $time_stop is the time to stop recording events in
-						// miliseconds
-						$time_stop = $time_start + update_status_interval;
-						while ( $now < $time_stop ) {
-							foreach ( explode ( "\r\n", $response ) as $line )
-								if (substr ( $line, 0, 3 ) == '650')
-									echo $now, substr ( $line, 3 ), "\n";
-							$response = get_response ();
-							$now = ( int ) (microtime ( 1 ) * 1000);
-						}
-					} else {
-						// If $time_start is not in the right range, it is reset.
-						echo 'a', $now + update_status_time_reset, "\n";
-					}
-
-					close_tc ();
-					exit ();
-
-				case 'geoip':
-					/*
-					 * $_POST['ip_addr'] should be IP addresses seperated by
-					 * ";".
-					 * The respnse for each IP address is a 2-letter country
-					 * code.
-					 * There are no seperators.
-					 * 
-					 * Geoip data is retrived from the following sources. The
-					 * first available is used.
-					 * 	ip-to-country from tor
-					 * 	php's geoip_country_code_by_name function
-					 * 	the operating system's geoiplookup or geoiplookup6
-					 * 	command
-					 */
-
-					header ( 'Content-type: text/plain' );
-					$command = 'getinfo';
-					$valid_addr_index = array ();
-					$valid_addr_length = array ();
-					$valid_addr = array ();
-					$valid_addr_num = 0;
-					$country = array ();
-					if (isset ( $_POST ['ip_addr'] )) {
-						$num = 0;
-						foreach ( explode ( ";", $_POST ['ip_addr'] ) as $a ) {
-							if ($b [0] == '[') {
-								if ($ip	= filter_var ( strstr ( substr (
-										$b, 1 ), ']', 1 ), FILTER_VALIDATE_IP,
-										FILTER_FLAG_NO_PRIV_RANGE
-										| FILTER_FLAG_NO_RES_RANGE )) {
-									$command .= " ip-to-country/$ip";
-									$valid_addr_index [] = $num;
-									$valid_addr_length [] = strlen ( $ip );
-									$valid_addr [] = $ip;
-									$valid_addr_num ++;
-								}
-							} elseif ($ip
-									= filter_var ( $a, FILTER_VALIDATE_IP )) {
-								$command .= " ip-to-country/$ip";
-								$valid_addr_index [] = $num;
-								$valid_addr_length [] = strlen ( $ip );
-								$valid_addr[]=$ip;
-								$valid_addr_num ++;
-							}
-							$country_codes [$num] = '??';
-							$num ++;
-						}
-						if ($valid_addr_num) {
-							$response_lines = exec_command_lines ( $command );
-							$a = 0;
-							foreach ( $response_lines as $line ) {
-								$country_code =
-										substr ( $line, $valid_addr_length [$a]
-												+ 19, 2 );
-								if ((strlen ( $country_code ) == 2)
-										&& ($country_code != '??')) {
-									$country_codes [$valid_addr_index [$a]]
-											= $country_code;
-								} else {
-									$ip = $valid_addr [$a];
-									if (function_exists (
-											'geoip_country_code_by_name' )
-											&& $country_code
-											= geoip_country_code_by_name (
-													$ip ))
-										$country_codes [$valid_addr_index [$a]]
-													= $country_code;
-									else {
-										if (filter_var ( $ip,
-												FILTER_VALIDATE_IP,
-												FILTER_FLAG_IPV4 )) {
-											if (! $geoiplookup_command_available
-													) {
-												$geoiplookup_command_available
-														= shell_exec 
-														('geoiplookup 8.8.8.8' )
-														? 1 : 2;
-											}
-											if ($geoiplookup_command_available
-													== 1) {
-												$geoip_output = shell_exec (
-														"geoiplookup $ip" );
-												if ((substr ( $geoip_output, 0,
-														23 ) ==
-													'GeoIP Country Edition: ')
-														&& ($geoip_output [25]
-																== ',')) {
-													$country_codes
-															[$valid_addr_index
-																	[$a]]
-															= substr
-															( $geoip_output, 23,
-																	2 );
-												}
-											}
-										} else {
-											if (!
-												$geoiplookup6_command_available
-													) {
-												$geoiplookup6_command_available
-														= shell_exec (
-											'geoiplookup6 2001:4860:4860::8888'
-																) ? 1 : 2;
-											}
-											if ($geoiplookup6_command_available
-													== 1) {
-												$geoip_output = shell_exec (
-														"geoiplookup6 $ip" );
-												if ((substr ( $geoip_output, 0,
-														26 ) == 
-													'GeoIP Country V6 Edition: '
-														) && ($geoip_output [28]
-																== ',')) {
-													$country_codes
-															[$valid_addr_index
-																	[$a]] 
-															= substr (
-																$geoip_output,
-																	26, 2 );
-												}
-											}
-										}
-									}
-								}
-								if (++ $a == $valid_addr_num)
-									break;
-							}
-						}
-						foreach ( $country_codes as $country_code )
-							echo $country_code;
-					}
-					close_tc ();
-					exit ();
-				case 'get_bandwidth_history':
-					/*
-					 * The first line of response is a number in decimal n.
-					 * The next n lines are 2 decimal numbers seperated by ",".
-					 * The first is download rate. The second is upload rate.
-					 * Each line represents 1 second. They are in chronological
-					 * order.
-					 * Line breaks are "\n".
-					 */
-
-					if (compare_version ( array (
-							0,
-							2,
-							6,
-							3 
-					) )) {
-						$response = exec_command ( 'getinfo bw-event-cache' );
-						if (substr ( $response, 0, 19 )
-								== '250-bw-event-cache=') {
-							$output_lines = explode ( ' ',
-									strstr ( substr ( $response, 19 ), "\r",
-											1 ) );
-							echo count ( $output_lines ), "\n";
-							foreach ( $output_lines as $line )
-								echo $line, "\n";
-						} else
-							echo "0\n";
-					} else
-						echo "0\n";
-					close_tc ();
-					exit ();
-			}
+				
+				// actions to be resolved afted connecting to tor control port
+			if (isset ( $action_functions [$action] ))
+				call_user_func ( $action_functions [$action] );
 
 			// to get all tor options
 			$response_lines = exec_command_lines ( 'getinfo config/names' );

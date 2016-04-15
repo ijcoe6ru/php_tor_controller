@@ -274,8 +274,8 @@ function update_status_handle(data) {
 	 * The next line is a number num in decimal meaning the lines for stream
 	 * status.
 	 * The next num lines are stream status, with " " at the end of each line.
-	 * The next line is a number num in decimal meaning the lines for OR
-	 * connection status.
+	 * The next line is a number num in decimal meaning the number of lines for
+	 * OR connection status.
 	 * The next num lines are OR connection status, with " " at the end of each
 	 * line.
 	 * The next line is a number num in decimal meaning the lines for circuit
