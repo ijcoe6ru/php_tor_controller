@@ -102,12 +102,15 @@ function custom_command_handle_key(event) {
 		custom_command_console_jquery.append(new_custom_command_input);
 		custom_command_console.scrollTop = custom_command_console.scrollHeight;
 
-		if (custom_command_command.substr(0, 10).toUpperCase() == 'SETEVENTS ')
-		{
-			user_events = custom_command_command.substr(10).toUpperCase()
-					.split(' ');
-			user_events.sort();
-			user_events_num = user_events.length;
+		if (custom_command_command.substr(0, 9).toUpperCase() == 'SETEVENTS') {
+			if (!custom_command_command[9])
+				user_events_num = 0;
+			else if (custom_command_command[9] == ' ') {
+				user_events = custom_command_command.substr(10).toUpperCase()
+						.split(' ');
+				user_events.sort();
+				user_events_num = user_events.length;
+			}
 		}
 
 		custom_command_request(
