@@ -989,11 +989,11 @@ function update_status() {
 	 * case, some requests will be held until the number of concurrent requests
 	 * fall below max. We need the requests to occur at exactly the right time
 	 * to get asynchronous events. So it will be useless if the request is held.
-	 * So we limit that only 3 concurrent requests can exist. Note that this
+	 * So we limit that only 2 concurrent requests can exist. Note that this
 	 * number of concurrent requests only includes the requests triggered by the
 	 * function update_status.
 	 */
-	if (concurrent_requests_num < 3) {
+	if (concurrent_requests_num < 2) {
 		concurrent_requests_num++;
 		$.ajax({
 			type : 'POST',
