@@ -4072,7 +4072,7 @@ if ($tc) {
 
 			$tor_version_string = $getinfo_values [0]->lines [0];
 
-			if (preg_match ( '/\A[\d\.]*\d/', $tor_version_string,
+			if (preg_match ( '/\A[\d\.]+\d/', $tor_version_string,
 					$tor_version_string_number )) {
 				$tor_version = explode ( '.', $tor_version_string_number [0] );
 				for($a = 0; $a < 4; $a ++)
