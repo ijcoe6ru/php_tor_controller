@@ -232,3 +232,7 @@ table {
 	border-style: solid;
 	border-width: 1px;
 }
+
+.custom_command_time {
+	color: green;
+}
