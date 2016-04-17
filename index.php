@@ -5,14 +5,12 @@ define ( 'path_http', '' );
 // path to the config file
 define ( 'config_file_path', 'config.php' );
 
-// interval to run updata_status() in miliseconds
-define ( 'update_status_interval', 2000 );
+// interval to run update_status() in miliseconds
+define ( 'update_status_interval', 500 );
 
-// timeout for update_status in miliseconds
-define ( 'update_status_timeout', 5000 );
-
-// time added to now when setting new update_status_interval in miliseconds
-define ( 'update_status_time_reset', 2500 );
+// interval to check for another instance of this script capturing asynchronous
+// events
+define ( 'update_status_check_interval', 100 );
 
 // number of seconds of bandwidth data to be stored
 define ( 'bandwidth_data_size', 601 );
@@ -42,6 +40,9 @@ $tor_options_name_reverse = array ();
 $tor_options_number = 0;
 $tor_options_default_value = array ();
 $tor_version_string = '';
+$event_names = array ();
+$info_names = array ();
+$signal_names = array ();
 
 // the functions to handle actions
 $action_functions = array (
@@ -152,7 +153,7 @@ $tor_options_description = array (
 				ServerTransportListenAddr</b> <i>transport IP</i>:<i>PORT</i>
 				</p><p class="tor_option_description_indented">When this option
 				is set, Tor will suggest <i>IP</i>:<i>PORT</i> as the listening
-				address of any pluggable transport proxy that tries to launch 
+				address of any pluggable transport proxy that tries to launch
 				<i>transport</i>.</p>',
 		'ServerTransportOptions' => '<p class="tor_option_description"><b>
 				ServerTransportOptions</b> <i>transport k=v k=v</i> ...</p><p
@@ -229,7 +230,7 @@ $tor_options_description = array (
 				buffers for all sockets will be set to this limit. Must be a
 				value between 2048 and 262144, in 1024 byte increments. Default
 				of 8192 is recommended.</p>',
-		'ControlPort' => '<p class="tor_option_description"><b>ControlPort</b> 
+		'ControlPort' => '<p class="tor_option_description"><b>ControlPort</b>
 				<i>PORT</i>|<b>unix:</b><i>path</i>|<b>auto</b> [<i>flags</i>]
 				</p><p class="tor_option_description_indented">If set, Tor will
 				accept connections on this port and allow those connections to
@@ -308,7 +309,7 @@ $tor_options_description = array (
 		'DataDirectory' => '<p class="tor_option_description"><b>DataDirectory
 				</b> <i>DIR</i></p><p class="tor_option_description_indented">
 				Store working data in DIR (Default: /var/lib/tor)</p>',
-		'FallbackDir' => '<p class="tor_option_description"><b>FallbackDir</b> 
+		'FallbackDir' => '<p class="tor_option_description"><b>FallbackDir</b>
 				<i>address</i>:<i>port</i> orport=<i>port</i> id=<i>fingerprint
 				</i> [weight=<i>num</i>]</p><p
 				class="tor_option_description_indented">When we’re unable to
@@ -332,8 +333,8 @@ $tor_options_description = array (
 				directory server is chosen randomly with probability
 				proportional to that weight (default 1.0). Lastly, if a flag
 				"v3ident=<b>fp</b>" is given, the dirserver is a v3 directory
-				authority whose v3 long−term signing key has the fingerprint 
-				<b>fp</b>.</p><p class="tor_option_description_indented">If no 
+				authority whose v3 long−term signing key has the fingerprint
+				<b>fp</b>.</p><p class="tor_option_description_indented">If no
 				<b>DirAuthority</b> line is given, Tor will use the default
 				directory authorities. NOTE: this option is intended for
 				setting up a private Tor network with its own directory
@@ -351,7 +352,7 @@ $tor_options_description = array (
 				AlternateDirAuthority</b> [<i>nickname</i>] [<b>flags</b>] <i>
 				address</i>:<i>port fingerprint</i></p>',
 		'AlternateBridgeAuthority' => '<p class="tor_option_description"><b>
-				AlternateBridgeAuthority</b> [<i>nickname</i>] [<b>flags</b>] 
+				AlternateBridgeAuthority</b> [<i>nickname</i>] [<b>flags</b>]
 				<i>address</i>:<i>port fingerprint</i></p><p
 				class="tor_option_description_indented">These options behave as
 				DirAuthority, but they replace fewer of the default directory
@@ -458,12 +459,12 @@ $tor_options_description = array (
 				Tor will run securely through the use of a syscall sandbox.
 				Otherwise the sandbox will be disabled. The option is currently
 				an experimental feature. (Default: 0)</p>',
-		'Socks4Proxy' => '<p class="tor_option_description"><b>Socks4Proxy</b> 
+		'Socks4Proxy' => '<p class="tor_option_description"><b>Socks4Proxy</b>
 				<i>host</i>[:<i>port</i>]</p><p
 				class="tor_option_description_indented">Tor will make all OR
 				connections through the SOCKS 4 proxy at host:port (or
 				host:1080 if port is not specified).</p>',
-		'Socks5Proxy' => '<p class="tor_option_description"><b>Socks5Proxy</b> 
+		'Socks5Proxy' => '<p class="tor_option_description"><b>Socks5Proxy</b>
 				<i>host</i>[:<i>port</i>]</p><p
 				class="tor_option_description_indented">Tor will make all OR
 				connections through the SOCKS 5 proxy at host:port (or
@@ -885,14 +886,14 @@ $tor_options_description = array (
 				TLS/SSL. If not set explicitly then the value of <b>
 				ReachableAddresses</b> is used. If <b>HTTPSProxy</b> is set
 				then these connections will go through that proxy.</p><p
-				class="tor_option_description_indented">The separation between 
+				class="tor_option_description_indented">The separation between
 				<b>ReachableORAddresses</b> and <b>ReachableDirAddresses</b> is
-				only interesting when you are connecting through proxies (see 
+				only interesting when you are connecting through proxies (see
 				<b>HTTPProxy</b> and <b>HTTPSProxy</b>). Most proxies limit TLS
 				connections (which Tor uses to connect to Onion Routers) to
 				port 443, and some limit HTTP GET requests (which Tor uses for
 				fetching directory information) to port 80.</p>',
-		'HidServAuth' => '<p class="tor_option_description"><b>HidServAuth</b> 
+		'HidServAuth' => '<p class="tor_option_description"><b>HidServAuth</b>
 				<i>onion−address auth−cookie</i> [<i>service−name</i>]</p>
 				<p class="tor_option_description_indented">Client authorization
 				for a hidden service. Valid onion addresses contain 16
@@ -902,7 +903,7 @@ $tor_options_description = array (
 				This option may be used multiple times for different hidden
 				services. If a hidden service uses authorization and this
 				option is not set, the hidden service is not accessible. Hidden
-				services can be configured to require authorization using the 
+				services can be configured to require authorization using the
 				<b>HiddenServiceAuthorizeClient</b> option.</p>',
 		'CloseHSClientCircuitsImmediatelyOnTimeout' => '<p
 				class="tor_option_description"><b>
@@ -1144,7 +1145,7 @@ $tor_options_description = array (
 				SOCKSListenAddress no longer has a purpose. For backward
 				compatibility, SOCKSListenAddress is only allowed when
 				SOCKSPort is just a port number.)</p>',
-		'SocksPolicy' => '<p class="tor_option_description"><b>SocksPolicy</b> 
+		'SocksPolicy' => '<p class="tor_option_description"><b>SocksPolicy</b>
 				<i>policy</i>,<i>policy</i>,<i>...</i></p><p
 				class="tor_option_description_indented">Set an entrance policy
 				for this server, to limit who can connect to the SocksPort and
@@ -1472,7 +1473,7 @@ $tor_options_description = array (
 		'AllowSingleHopCircuits' => '<p class="tor_option_description"><b>
 				AllowSingleHopCircuits 0</b>|<b>1</b></p><p
 				class="tor_option_description_indented">When this option is
-				set, the attached Tor controller can use relays that have the 
+				set, the attached Tor controller can use relays that have the
 				<b>AllowSingleHopExits</b> option turned on to build one−hop
 				Tor connections. (Default: 0)</p>',
 		'OptimisticData' => '<p class="tor_option_description"><b>
@@ -1650,7 +1651,7 @@ $tor_options_description = array (
 				causes Tor to publish a server descriptor to the bridge
 				database, rather than to the public directory authorities.</p>
 				',
-		'ContactInfo' => '<p class="tor_option_description"><b>ContactInfo</b> 
+		'ContactInfo' => '<p class="tor_option_description"><b>ContactInfo</b>
 				<i>email_address</i></p><p
 				class="tor_option_description_indented">Administrative contact
 				information for this relay or bridge. This line can be used to
@@ -1804,7 +1805,7 @@ $tor_options_description = array (
 				firewall\'s port <br> forwarding configuration) is causing
 				connections to reach us. <br> **IPv4Only**:: <br> If the
 				address is absent, or resolves to both an IPv4 and an IPv6 <br>
-				address, only listen to the IPv4 address. <br> **IPv6Only**:: 
+				address, only listen to the IPv4 address. <br> **IPv6Only**::
 				<br> If the address is absent, or resolves to both an IPv4 and
 				an IPv6 <br> address, only listen to the IPv6 address.</p><p
 				class="tor_option_description_indented2">For obvious reasons,
@@ -1902,7 +1903,7 @@ $tor_options_description = array (
 				default functionality). Set to "sum" to calculate using the
 				sent plus received bytes. (Default: max)</p>',
 		'AccountingStart' => '<p class="tor_option_description"><b>
-				AccountingStart day</b>|<b>week</b>|<b>month</b> [<i>day</i>] 
+				AccountingStart day</b>|<b>week</b>|<b>month</b> [<i>day</i>]
 				<i>HH:MM</i></p><p class="tor_option_description_indented">
 				Specify how long accounting periods last. If <b>month</b> is
 				given, each accounting period runs from the time <i>HH:MM</i>
@@ -1999,7 +2000,7 @@ $tor_options_description = array (
 				filename</i></p><p class="tor_option_description_indented">A
 				filename containing IPv4 GeoIP data, for use with by−country
 				statistics.</p>',
-		'GeoIPv6File' => '<p class="tor_option_description"><b>GeoIPv6File</b> 
+		'GeoIPv6File' => '<p class="tor_option_description"><b>GeoIPv6File</b>
 				<i>filename</i></p><p class="tor_option_description_indented">A
 				filename containing IPv6 GeoIP data, for use with by−country
 				statistics.</p>',
@@ -2168,7 +2169,7 @@ $tor_options_description = array (
 				believed safe for use to the published directory. Each version
 				1 authority is automatically a versioning authority; version 2
 				authorities provide this service optionally. See <b>
-				RecommendedVersions</b>, <b>RecommendedClientVersions</b>, and 
+				RecommendedVersions</b>, <b>RecommendedClientVersions</b>, and
 				<b>RecommendedServerVersions</b>.</p>',
 		'RecommendedVersions' => '<p class="tor_option_description"><b>
 				RecommendedVersions</b> <i>STRING</i></p><p
@@ -2493,11 +2494,11 @@ $tor_options_description = array (
 				set if non−default set of DirAuthorities is set. Cannot be
 				unset while Tor is running. (Default: 0)</p><p
 				class="tor_option_description_indented2">
-				ServerDNSAllowBrokenConfig 1 <br> DirAllowPrivateAddresses 1 
+				ServerDNSAllowBrokenConfig 1 <br> DirAllowPrivateAddresses 1
 				<br> EnforceDistinctSubnets 0 <br> AssumeReachable 1 <br>
-				AuthDirMaxServersPerAddr 0 <br> AuthDirMaxServersPerAuthAddr 0 
+				AuthDirMaxServersPerAddr 0 <br> AuthDirMaxServersPerAuthAddr 0
 				<br> ClientDNSRejectInternalAddresses 0 <br>
-				ClientRejectInternalAddresses 0 <br> CountPrivateBandwidth 1 
+				ClientRejectInternalAddresses 0 <br> CountPrivateBandwidth 1
 				<br> ExitPolicyRejectPrivate 0 <br> ExtendAllowPrivateAddresses
 				1 <br> V3AuthVotingInterval 5 minutes <br> V3AuthVoteDelay 20
 				seconds <br> V3AuthDistDelay 20 seconds <br>
@@ -2507,17 +2508,17 @@ $tor_options_description = array (
 				TestingV3AuthInitialDistDelay 20 seconds <br>
 				TestingAuthDirTimeToLearnReachability 0 minutes <br>
 				TestingEstimatedDescriptorPropagationTime 0 minutes <br>
-				TestingServerDownloadSchedule 0, 0, 0, 5, 10, 15, 20, 30, 60 
-				<br> TestingClientDownloadSchedule 0, 0, 5, 10, 15, 20, 30, 60 
+				TestingServerDownloadSchedule 0, 0, 0, 5, 10, 15, 20, 30, 60
+				<br> TestingClientDownloadSchedule 0, 0, 5, 10, 15, 20, 30, 60
 				<br> TestingServerConsensusDownloadSchedule 0, 0, 5, 10, 15,
 				20, 30, 60 <br> TestingClientConsensusDownloadSchedule 0, 0, 5,
 				10, 15, 20, 30, 60 <br> TestingBridgeDownloadSchedule 60, 30,
-				30, 60 <br> TestingClientMaxIntervalWithoutRequest 5 seconds 
+				30, 60 <br> TestingClientMaxIntervalWithoutRequest 5 seconds
 				<br> TestingDirConnectionMaxStall 30 seconds <br>
 				TestingConsensusMaxDownloadTries 80 <br>
 				TestingDescriptorMaxDownloadTries 80 <br>
 				TestingMicrodescMaxDownloadTries 80 <br>
-				TestingCertMaxDownloadTries 80 <br> TestingEnableConnBwEvent 1 
+				TestingCertMaxDownloadTries 80 <br> TestingEnableConnBwEvent 1
 				<br> TestingEnableCellStatsEvent 1 <br>
 				TestingEnableTbEmptyEvent 1</p>',
 		'TestingV3AuthInitialVotingInterval' => '<p
@@ -2532,13 +2533,13 @@ $tor_options_description = array (
 				<b>TestingV3AuthInitialVoteDelay</b> <i>N</i> <b>minutes</b>|<b>
 				hours</b></p><p class="tor_option_description_indented">Like
 				V3AuthVoteDelay, but for initial voting interval before the
-				first consensus has been created. Changing this requires that 
+				first consensus has been created. Changing this requires that
 				<b>TestingTorNetwork</b> is set. (Default: 5 minutes)</p>',
 		'TestingV3AuthInitialDistDelay' => '<p class="tor_option_description">
 				<b>TestingV3AuthInitialDistDelay</b> <i>N</i> <b>minutes</b>|<b>
 				hours</b></p><p class="tor_option_description_indented">Like
 				V3AuthDistDelay, but for initial voting interval before the
-				first consensus has been created. Changing this requires that 
+				first consensus has been created. Changing this requires that
 				<b>TestingTorNetwork</b> is set. (Default: 5 minutes)</p>',
 		'TestingV3AuthVotingStartOffset' => '<p class="tor_option_description">
 				<b>TestingV3AuthVotingStartOffset</b> <i>N</i> <b>seconds</b>|
@@ -2657,7 +2658,7 @@ $tor_options_description = array (
 		'TestingDirAuthVoteExitIsStrict' => '<p class="tor_option_description">
 				<b>TestingDirAuthVoteExitIsStrict 0</b>|<b>1</b></p><p
 				class="tor_option_description_indented">If True (1), a node
-				will never receive the Exit flag unless it is specified in the 
+				will never receive the Exit flag unless it is specified in the
 				<b>TestingDirAuthVoteExit</b> list, regardless of its uptime,
 				bandwidth, or exit policy.</p><p
 				class="tor_option_description_indented">In order for this
@@ -2744,7 +2745,7 @@ TestingLinkKeySlop</b> <i>N</i> <b>seconds</b>|<b>minutes</b>|
 class="tor_option_description_indented">How early before the
 official expiration of a an Ed25519 signing key do we replace
 it and issue a new key? (Default: 3 hours for link and auth; 1
-day for signing.)</p>' 
+day for signing.)</p>'
 );
 
 /*
@@ -3063,39 +3064,58 @@ $tor_circuit_status_name_to_col = array (
 		'TIME_CREATED' => 4
 );
 
+class getinfo_value {
+	function __construct($num, $lines) {
+		$this->num = $num;
+		$this->lines = $lines;
+	}
+}
+
+class event_cache_type {
+	function __construct($time, $line) {
+		$this->time = $time;
+		$this->line = $line;
+	}
+}
+
+/*
+ * This function gets response from tor control.
+ * It returns the response on success or null on failure.
+ */
 function get_response() {
 	global $tc;
-	if ($response_new_chunk = fread ( $tc, tc_max_response_chunk_length )) {
-		$response = $response_new_chunk;
-		if ($response [3] === ' ')
-			return $response;
-		else {
-			$code_space = substr ( $response, 0, 3 ) . ' ';
-			$pos_new_line = 0;
-			while ( 1 ) {
-				while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line ))
-						!== false ) {
-					$pos_new_line = $tmp + 2;
-					$pre = substr ( $response, $pos_new_line, 4 );
-					if ($pre == $code_space) {
-						// to make sure the next line is empty
-						if (($tmp = strpos ( $response, "\r\n", $pos_new_line ))
-								!== false) {
-							$pos_new_line = $tmp + 2;
-							if ($pos_new_line == strlen ( $response ))
-								return $response;
-						}
+
+	if (($response_new_chunk = fread ( $tc, tc_max_response_chunk_length )) === false)
+		return null;
+	$response = $response_new_chunk;
+	if ($response === '')
+		return $response;
+	if ($response [3] === ' ')
+		return $response;
+	else {
+		$code_space = substr ( $response, 0, 3 ) . ' ';
+		$pos_new_line = 0;
+		while ( 1 ) {
+			while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false ) {
+				$pos_new_line = $tmp + 2;
+				$pre = substr ( $response, $pos_new_line, 4 );
+				if ($pre == $code_space) {
+					// to make sure the next line is empty
+					if (($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false) {
+						$pos_new_line = $tmp + 2;
+						if ($pos_new_line == strlen ( $response ))
+							return $response;
 					}
 				}
-				if ($response_new_chunk
-						= fread ( $tc, tc_max_response_chunk_length ))
-					$response .= $response_new_chunk;
-				else
-					return $response;
 			}
+			do {
+				$response_new_chunk = fread ( $tc, tc_max_response_chunk_length );
+				if ($response_new_chunk === false)
+					return null;
+			} while ( $response_new_chunk === '' );
+			$response .= $response_new_chunk;
 		}
-	} else
-		return '';
+	}
 }
 
 function exec_command($command) {
@@ -3104,8 +3124,77 @@ function exec_command($command) {
 	return get_response ();
 }
 
+function response_to_lines($response) {
+	return explode ( "\r\n", $response );
+}
+
 function exec_command_lines($command) {
-	return explode ( "\r\n", exec_command ( $command ) );
+	return response_to_lines ( exec_command ( $command ) );
+}
+
+/*
+ * This function parses the response for getinfo.
+ */
+function parse_getinfo($name) {
+	$response_lines = exec_command_lines ( "getinfo $name" );
+	$line_index = 0;
+
+	$line = $response_lines [$line_index ++];
+	$getinfo_current_value = array ();
+	$getinfo_current_lines = 0;
+	if ($line [3] == '+') // multi lines
+	{
+		while ( ($line = $response_lines [$line_index ++]) !== '.' ) {
+			$getinfo_current_value [] = $line;
+			$getinfo_current_lines ++;
+		}
+	} else {
+		$val = strstr ( $line, '=' );
+		if (isset ( $val [1] )) // the value is not empty
+		{
+			$getinfo_current_value [] = substr ( $val, 1 );
+			$getinfo_current_lines = 1;
+		}
+	}
+
+	return new getinfo_value ( $getinfo_current_lines, $getinfo_current_value );
+}
+
+/*
+ * This function parses the response for getinfo.
+ * It returns an array. Each item is of getinfo_value type.
+ */
+function parse_getinfo_array($names) {
+	$response_lines
+			= exec_command_lines ( 'getinfo ' . implode ( ' ', $names ) );
+	$name_index = 0;
+	$line_index = 0;
+	$getinfo_values = array ();
+
+	$names_num = count ( $names );
+	for($name_index = 0; $name_index < $names_num; $name_index ++) {
+		$line = $response_lines [$line_index ++];
+		$getinfo_current_value = array ();
+		$getinfo_current_lines = 0;
+		if ($line [3] == '+') // multi lines
+		{
+			while ( ($line = $response_lines [$line_index ++]) !== '.' ){
+				$getinfo_current_value [] = $line;
+				$getinfo_current_lines ++;
+			}
+		} else {
+			$val = strstr ( $line, '=' );
+			if (isset ( $val [1] )) // the value is not empty
+			{
+				$getinfo_current_value [] = substr ( $val, 1 );
+				$getinfo_current_lines = 1;
+			}
+		}
+		$getinfo_values [] = new getinfo_value ( $getinfo_current_lines,
+				$getinfo_current_value );
+	}
+
+	return $getinfo_values;
 }
 
 function close_tc() {
@@ -3151,15 +3240,13 @@ function update_config() {
  * This function compares the current version of tor with the version required.
  * It returns 1 if the current version is higher or equal to the version
  * required. It returns 0 otherwise.
- * 
+ *
  * The format for $v should be an array of 4 numbers. Each represent a part of
  * the version to be compared with.
  */
 function compare_version($v) {
 	global $tor_version;
 	for($a = 0; $a < 3; $a ++) {
-		if (! isset ( $tor_version [$a] ))
-			return 0;
 		if ($tor_version [$a] > $v [$a])
 			return 1;
 		if ($tor_version [$a] < $v [$a])
@@ -3396,8 +3483,6 @@ function output_circuit_status($line) {
 }
 
 function custom_command_function() {
-	global $_POST;
-
 	header ( 'Content-type: text/plain' );
 
 	if (isset ( $_POST ['custom_command_command'] )) {
@@ -3453,8 +3538,6 @@ function update_status_function() {
 	 * 	bandwidth
 	 * 	portlist
 	 * Seperators are "\t".
-	 * Next line is "a" followed by a timestamp in miliseconds in decimal
-	 * meaning the next time_start or empty.
 	 * Each of the next lines is a timestamp in miliseconds in decimal followed
 	 * by a line of response for one of the following asynchronous events
 	 * without "650" at the beginning of the line.
@@ -3466,89 +3549,47 @@ function update_status_function() {
 	 * Line breaks are "\n".
 	 */
 
-	global $_POST, $tor_version_string;
+	global $tor_version_string, $tc, $event_names_string;
 
 	header ( 'Content-type: text/plain' );
 
 	echo $tor_version_string, "\n";
 
-	$response_lines = exec_command_lines (
-			'getinfo network-liveness status/bootstrap-phase status/circuit-e' .
-			'stablished status/enough-dir-info status/good-server-descriptor ' .
-			'status/accepted-server-descriptor status/reachability-succeeded ' .
-			'stream-status orconn-status circuit-status' );
+	$getinfo_values = parse_getinfo_array ( array (
+			'network-liveness',
+			'status/bootstrap-phase',
+			'status/circuit-established',
+			'status/enough-dir-info',
+			'status/good-server-descriptor',
+			'status/accepted-server-descriptor',
+			'status/reachability-succeeded',
+			'stream-status',
+			'orconn-status',
+			'circuit-status'
+	) );
 
+	// for network-liveness, status/bootstrap-phase, status/circuit-established,
+	// status/enough-dir-info, status/good-server-descriptior,
+	// status/accepted-server-descriptor, and status/reachability-succeeded
 	for($index = 0; $index < 7; $index ++)
-		echo substr ( strstr ( $response_lines [$index], '=' ), 1 ), "\n";
+		echo $getinfo_values [$index]->lines [0], "\n";
 
 	// for stream-status
-	$line = $response_lines [$index];
-	if ($line [3] == '+') {
-		$response_lines_1 = array ();
-		$num = 0;
-		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
-			$response_lines_1 [] = $line;
-			$num ++;
-		}
-		$index ++;
-		echo $num, "\n";
-		foreach ( $response_lines_1 as $line )
-			echo $line, " \n";
-	} else {
-		$line = substr ( $line, 18 );
-		if (isset ( $line [0] )) {
-			echo "1\n", $line, " \n";
-		} else
-			echo "0\n";
-		$index ++;
-	}
+	echo $getinfo_values [7]->num, "\n";
+	foreach ( $getinfo_values [7]->lines as $line )
+		echo $line, " \n";
 
 	// for orconn-status
-	$line = $response_lines [$index];
-	if ($line [3] == '+') {
-		$response_lines_1 = array ();
-		$num = 0;
-		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
-			$response_lines_1 [] = $line;
-			$num ++;
-		}
-		$index ++;
-		echo $num, "\n";
-		foreach ( $response_lines_1 as $line ) {
-			$a = explode ( ' ', $line );
-			echo $a [1], ' ', $a [0], " \n";
-		}
-	} else {
-		$line = substr ( $line, 18 );
-		if (isset ( $line [0] )) {
-			$a = explode ( ' ', $line );
-			echo "1\n", $a [1], ' ', $a [0], " \n";
-		} else
-			echo "0\n";
-		$index ++;
+	echo $getinfo_values [8]->num, "\n";
+	foreach ( $getinfo_values [8]->lines as $line ) {
+		$a = explode ( ' ', $line );
+		echo $a [1], ' ', $a [0], " \n";
 	}
 
 	// for circuit-status
-	$line = $response_lines [$index];
-	if ($line [3] == '+') {
-		$response_lines_1 = array ();
-		$num = 0;
-		for($index++; (($line = $response_lines[$index])[0]) != '.'; $index++){
-			$response_lines_1 [] = $line;
-			$num ++;
-		}
-		echo $num, "\n";
-		foreach ( $response_lines_1 as $line ) {
-			output_circuit_status ( $line );
-		}
-	} else {
-		$line = substr ( $line, 19 );
-		if (isset ( $line [0] )) {
-			echo "1\n";
-			output_circuit_status ( $line );
-		} else
-			echo "0\n";
-	}
+	echo $getinfo_values [9]->num, "\n";
+	foreach ( $getinfo_values [9]->lines as $line )
+		output_circuit_status ( $line );
 
 	// for ns/all
 	$num = 0;
@@ -3557,54 +3598,32 @@ function update_status_function() {
 			0,
 			1,
 			2,
-			3 
+			3
 	) )) // v3 directory style
 	{
-		$response_lines = exec_command_lines ( 'getinfo ns/all' );
-		$line = $response_lines [0];
-		if ($line [3] == '+') {
-			unset ( $response_lines [0] );
-			foreach ( $response_lines as $line ) {
-				if ($line [0] == '.')
-					break;
-				if ($out = parse_dir ( $line )) {
-					$output_lines [] = $out;
+		$getinfo_values = parse_getinfo ( 'ns/all' );
+		if ($getinfo_values->num) {
+			foreach ( $getinfo_values->lines as $line ) {
+				if ($result = parse_dir ( $line )) {
+					$output_lines [] = $result;
 					$num ++;
 				}
 			}
 			$output_lines [] = output_parse_dir ();
 			$num ++;
-		} else {
-			$line = substr ( $line, 11 );
-			if (isset ( $line [0] )) {
-				parse_dir ( $line );
-				$output_lines [] = output_parse_dir ();
-				$num = 1;
-			}
 		}
 	} else // v1 directory style
 	{
-		$response_lines = exec_command_lines ( 'getinfo network-status' );
-		$line = $response_lines [0];
-		if ($line [3] == '+') {
-			unset ( $response_lines [0] );
-			foreach ( $response_lines as $line ) {
-				if ($line [0] == '.')
-					break;
-				if ($out = parse_dir_v1 ( $line )) {
-					$output_lines [] = $out;
+		$getinfo_values = parse_getinfo ( 'network-status' );
+		if ($getinfo_values->num) {
+			foreach ( $getinfo_values->lines as $line ) {
+				if ($result = parse_dir_v1 ( $line )) {
+					$output_lines [] = $result;
 					$num ++;
 				}
 			}
 			$output_lines [] = output_parse_dir ();
 			$num ++;
-		} else {
-			$line = substr ( $line, 11 );
-			if (isset ( $line [0] )) {
-				parse_dir_v1 ( $line );
-				$output_lines [] = output_parse_dir ();
-				$num = 1;
-			}
 		}
 	}
 	echo $num, "\n";
@@ -3613,96 +3632,167 @@ function update_status_function() {
 	}
 
 	// for asynchronous events
-	// $time_start is the time to start recording events in miliseconds
+	$response = exec_command ( "setevents $event_names_string" );
 	$now = ( int ) (microtime ( 1 ) * 1000);
-	if (isset ( $_POST ['time_start'] )
-			&& (($time_start
-					= filter_var ( $_POST ['time_start'], FILTER_VALIDATE_INT ))
-					!== false)
-			&& ($time_start > $now)
-			&& ($time_start < $now + update_status_interval)) {
-		echo "\n";
-		$response = exec_command ( 'setevents bw info notice warn err' );
-		while ( ($now = ( int ) (microtime ( 1 ) * 1000)) < $time_start )
-			$response = get_response ();
 
-		// $time_stop is the time to stop recording events in miliseconds
-		$time_stop = $time_start + update_status_interval;
-		while ( $now < $time_stop ) {
-			foreach ( explode ( "\r\n", $response ) as $line )
-				if (substr ( $line, 0, 3 ) == '650')
-					echo $now, substr ( $line, 3 ), "\n";
+	// $time_check is the time to check for another instance of this script
+	// capturing asynchronous events
+	$time_check = $now + update_status_check_interval;
+
+	$event_cache = array ();
+
+	ini_set ( 'session.use_only_cookies', false );
+	ini_set ( 'session.use_cookies', false );
+	ini_set ( 'session.use_trans_sid', false );
+	ini_set ( 'session.cache_limiter', null );
+	session_start ();
+	$last_capture = ($_SESSION ['php_tor_controller_last_event_capture'] + 1)
+			& 0xffff;
+	$_SESSION ['php_tor_controller_last_event_capture'] = $last_capture;
+	$_SESSION ['php_tor_controller_last_event_capture_time'] = $now;
+	session_write_close ();
+
+	stream_set_blocking ( $tc, 0 );
+
+	while ( 1 ) {
+		// to output and clear cached events
+		foreach ( $event_cache as $event ) {
+			echo $event->time, $event->line, "\n";
+		}
+		$event_cache = array ();
+
+		while ( $now < $time_check ) {
+			if ($response !== '') {
+				foreach ( response_to_lines ( $response ) as $line ) {
+					if (substr ( $line, 0, 3 ) === '650')
+						$event_cache [] = new event_cache_type ( $now, substr ( $line, 3 ) );
+				}
+			}
 			$response = get_response ();
 			$now = ( int ) (microtime ( 1 ) * 1000);
 		}
-	} else {
-		// If $time_start is not in the right range, it is reset.
-		echo 'a', $now + update_status_time_reset, "\n";
-	}
 
-	close_tc ();
-	exit ();
+		$time_check+=update_status_check_interval;
+
+		// to check for another instance of this script capturing asynchronous
+		// events
+		session_start ();
+		if ($_SESSION ['php_tor_controller_last_event_capture']
+				!= $last_capture) {
+			$last_capture_time
+					= $_SESSION ['php_tor_controller_last_event_capture_time'];
+			session_write_close ();
+			stream_set_blocking ( $tc, 1 );
+			close_tc ();
+			foreach ( $event_cache as $event ) {
+				if ($event->time >= $last_capture_time)
+					exit ();
+				echo $event->time, $event->line, "\n";
+			}
+			exit ();
+		}
+		$last_capture = ($_SESSION ['php_tor_controller_last_event_capture']
+				+ 1) & 0xffff;
+		$_SESSION ['php_tor_controller_last_event_capture'] = $last_capture;
+		$_SESSION ['php_tor_controller_last_event_capture_time'] = $now;
+		session_write_close ();
+	}
 }
 
-function geoip_function() {
-	/*
-	 * $_POST['ip_addr'] should be IP addresses seperated by
-	 * ";".
-	 * The respnse for each IP address is a 2-letter country
-	 * code.
-	 * There are no seperators.
-	 *
-	 * Geoip data is retrived from the following sources. The
-	 * first available is used.
-	 * ip-to-country from tor
-	 * php's geoip_country_code_by_name function
-	 * the operating system's geoiplookup or geoiplookup6
-	 * command
-	 */
-
-	global $_POST;
-
+/*
+ * This function is used when tor's getinfo ip-to-country/ doesn't give the
+ * location of an ip address.
+ * Geoip data is retrived from the following sources. The first available is
+ * used.
+ * 	php's geoip_country_code_by_name function
+ * 	the operating system's geoiplookup or geoiplookup6 command
+ * When none of the above is available, null is returned.
+ */
+function geoip_alt($ip) {
 	/*
 	 * geoiplookup_command_available indicates whether the geoiplookup command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
 	 */
-	$geoiplookup_command_available = 0;
+	static $geoiplookup_command_available = 0;
 
 	/*
 	 * geoiplookup6_command_available indicates whether the geoiplookup6 command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
 	 */
-	$geoiplookup6_command_available = 0;
+	static $geoiplookup6_command_available = 0;
+
+	if (function_exists ( 'geoip_country_code_by_name' )
+			&& $country_code = geoip_country_code_by_name ( $ip ))
+		return $country_code;
+	if (filter_var ( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 )) {
+		if (! $geoiplookup_command_available) {
+			$geoiplookup_command_available
+					= shell_exec ( 'geoiplookup 8.8.8.8' ) ? 1 : 2;
+		}
+		if ($geoiplookup_command_available == 1) {
+			$geoip_output = shell_exec ( "geoiplookup $ip" );
+			if ((substr ( $geoip_output, 0, 23 ) == 'GeoIP Country Edition: ')
+					&& ($geoip_output [25] == ',')) {
+				return substr ( $geoip_output, 23, 2 );
+			}
+		}
+	} else {
+		if (! $geoiplookup6_command_available) {
+			$geoiplookup6_command_available
+					= shell_exec ( 'geoiplookup6 2001:4860:4860::8888' )
+					? 1 : 2;
+		}
+		if ($geoiplookup6_command_available == 1) {
+			$geoip_output = shell_exec ( "geoiplookup6 $ip" );
+			if ((substr ( $geoip_output, 0, 26 )
+					== 'GeoIP Country V6 Edition: ')
+					&& ($geoip_output [28] == ',')) {
+				return substr ( $geoip_output, 26, 2 );
+			}
+		}
+	}
+	return null;
+}
+
+function geoip_function() {
+	/*
+	 * $_POST['ip_addr'] should be IP addresses seperated by "-".
+	 * The respnse for each IP address is a 2-letter country code.
+	 * There are no seperators.
+	 *
+	 * Geoip data is retrived from the following sources. The first available
+	 * is used.
+	 * 	ip-to-country from tor
+	 * 	php's geoip_country_code_by_name function
+	 * 	the operating system's geoiplookup or geoiplookup6 command
+	 */
 
 	header ( 'Content-type: text/plain' );
 
-	$command = 'getinfo';
+	$getinfo_names = array ();
 	$valid_addr_index = array ();
-	$valid_addr_length = array ();
 	$valid_addr = array ();
 	$valid_addr_num = 0;
 	$country_codes = array ();
 	if (isset ( $_POST ['ip_addr'] )) {
 		$num = 0;
-		foreach ( explode ( ";", $_POST ['ip_addr'] ) as $ip ) {
+		foreach ( explode ( "-", $_POST ['ip_addr'] ) as $ip ) {
 			if (isset ( $ip [0] )) {
 				if ($ip [0] == '[') {
 					if ($ip = filter_var ( strstr ( substr ( $ip, 1 ), ']', 1 ),
 							FILTER_VALIDATE_IP,
 							FILTER_FLAG_NO_PRIV_RANGE
 							| FILTER_FLAG_NO_RES_RANGE )) {
-						$command .= " ip-to-country/$ip";
+						$getinfo_names [] = "ip-to-country/$ip";
 						$valid_addr_index [] = $num;
-						$valid_addr_length [] = strlen ( $ip );
 						$valid_addr [] = $ip;
 						$valid_addr_num ++;
 					}
 				} elseif ($ip = filter_var ( $ip, FILTER_VALIDATE_IP )) {
-					$command .= " ip-to-country/$ip";
+					$getinfo_names [] = "ip-to-country/$ip";
 					$valid_addr_index [] = $num;
-					$valid_addr_length [] = strlen ( $ip );
 					$valid_addr [] = $ip;
 					$valid_addr_num ++;
 				}
@@ -3711,59 +3801,16 @@ function geoip_function() {
 			$num ++;
 		}
 		if ($valid_addr_num) {
-			$response_lines = exec_command_lines ( $command );
+			$getinfo_values = parse_getinfo_array ( $getinfo_names );
 			$a = 0;
-			foreach ( $response_lines as $line ) {
-				$country_code
-						= substr ( $line, $valid_addr_length [$a] + 19, 2 );
-				if ((strlen ( $country_code ) == 2) && ($country_code != '??'))
-				{
+			foreach ( $getinfo_values as $val ) {
+				if (($val->num == 1)
+						&& (strlen ( $country_code = $val->lines [0] ) == 2)
+						&& ($country_code != '??'))
 					$country_codes [$valid_addr_index [$a]] = $country_code;
-				} else {
-					$ip = $valid_addr [$a];
-					if (function_exists ( 'geoip_country_code_by_name' )
-							&& $country_code
-							= geoip_country_code_by_name ( $ip ))
-						$country_codes [$valid_addr_index [$a]] = $country_code;
-					else {
-						if (filter_var ( $ip, FILTER_VALIDATE_IP,
-								FILTER_FLAG_IPV4 )) {
-							if (! $geoiplookup_command_available) {
-								$geoiplookup_command_available
-										= shell_exec ( 'geoiplookup 8.8.8.8' )
-										? 1 : 2;
-							}
-							if ($geoiplookup_command_available == 1) {
-								$geoip_output
-										= shell_exec ( "geoiplookup $ip" );
-								if ((substr ( $geoip_output, 0, 23 )
-										== 'GeoIP Country Edition: ')
-										&& ($geoip_output [25] == ',')) {
-									$country_codes [$valid_addr_index [$a]]
-											= substr ( $geoip_output, 23, 2 );
-								}
-							}
-						} else {
-							if (! $geoiplookup6_command_available) {
-								$geoiplookup6_command_available = shell_exec (
-										'geoiplookup6 2001:4860:4860::8888' )
-										? 1 : 2;
-							}
-							if ($geoiplookup6_command_available == 1) {
-								$geoip_output
-										= shell_exec ( "geoiplookup6 $ip" );
-								if ((substr ( $geoip_output, 0, 26 )
-										== 'GeoIP Country V6 Edition: ')
-										&& ($geoip_output [28] == ',')) {
-									$country_codes [$valid_addr_index [$a]]
-											= substr ( $geoip_output, 26, 2 );
-								}
-							}
-						}
-					}
-				}
-				if (++ $a == $valid_addr_num)
-					break;
+				elseif ($country_code = geoip_alt ( $valid_addr [$a] ))
+					$country_codes [$valid_addr_index [$a]] = $country_code;
+				$a ++;
 			}
 		}
 		foreach ( $country_codes as $country_code )
@@ -3786,19 +3833,18 @@ function get_bandwidth_history_function() {
 			0,
 			2,
 			6,
-			3 
+			3
 	) )) {
-		$response = exec_command ( 'getinfo bw-event-cache' );
-		if (substr ( $response, 0, 19 ) == '250-bw-event-cache=') {
-			$output_lines = explode ( ' ', strstr ( substr ( $response, 19 ),
-					"\r", 1 ) );
-			echo count ( $output_lines ), "\n";
-			foreach ( $output_lines as $line )
-				echo $line, "\n";
-		} else
-			echo "0\n";
+		$getinfo_values = parse_getinfo ( 'bw-event-cache' );
+		if ($getinfo_values->num == 1) {
+			$bandwidth_data = explode ( ' ', $getinfo_values->lines [0] );
+			echo count ( $bandwidth_data ), "\n";
+			foreach ( $bandwidth_data as $a )
+				echo $a, "\n";
+		}
 	} else
 		echo "0\n";
+
 	close_tc ();
 	exit ();
 }
@@ -3812,6 +3858,9 @@ session_start ();
 
 if (is_invalid_var ( $require_login, 0, 1 ))
 	$require_login = 0;
+
+if (! isset ( $_SESSION ['php_tor_controller_last_event_capture'] ))
+	$_SESSION ['php_tor_controller_last_event_capture'] = 0;
 
 check_login:
 if ($require_login) {
@@ -4008,14 +4057,36 @@ if ($tc) {
 	}
 	if ($auth_success) {
 		if (($response = exec_command ( $command )) == "250 OK\r\n") {
-			// to get the current version
-			$tor_version_string = strstr ( substr ( exec_command (
-					'getinfo version' ), 12 ), "\r", 1 );
-			$a = explode ( '.', $tor_version_string );
-			for($b = 0; $b < 4; $b ++)
-				$tor_version [$b] = ( int ) $a [$b];
+			// to get the current version and event names
+			$getinfo_values = parse_getinfo_array ( array (
+					'version',
+					'events/names'
+			) );
 
-				// actions to be resolved afted connecting to tor control port
+			$tor_version_string = $getinfo_values [0]->lines [0];
+
+			if (preg_match ( '/\A[\d\.]*\d/', $tor_version_string,
+					$tor_version_string_number )) {
+				$tor_version = explode ( '.', $tor_version_string_number [0] );
+				for($a = 0; $a < 4; $a ++)
+					if (! isset ( $tor_version [$a] ))
+						$tor_version [$a] = 0;
+					else
+						$tor_version [$a] = ( int ) ($tor_version [$a]);
+			} else {
+				$tor_version = array (
+						0,
+						0,
+						0,
+						0
+				);
+				$error_message .= '<p>
+						Unrecognized tor version</p>
+					<p>' . htmlspecialchars ( $tor_version_string ) . '</p>';
+			}
+			$event_names_string = $getinfo_values [1]->lines [0];
+
+			// actions to be resolved afted connecting to tor control port
 			if (isset ( $action_functions [$action] ))
 				call_user_func ( $action_functions [$action] );
 
@@ -4214,8 +4285,6 @@ foreach ( $tor_options_name as $b ) {
 ];
 
 update_status_interval=<?=update_status_interval?>;
-
-update_status_timeout=<?=update_status_timeout?>;
 
 bandwidth_data_size=<?=bandwidth_data_size?>;
 

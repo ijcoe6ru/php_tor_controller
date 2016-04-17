@@ -21,7 +21,6 @@ var bandwidth_data,
  		tor_options_number,
  		tor_options_name,
  		update_status_interval,
- 		update_status_timeout,
  		status_fields,
  		stream_tbody,
  		stream_contents = [],
@@ -42,7 +41,6 @@ var bandwidth_data,
 		data_from_server_list = null,
 		data_from_server_list_end = null,
 		update_status_handle_running = 0,
-		update_status_time_start = 0,
 		messsages_data,
 		messages_data_size,
 		messages_data_last_index = 0,
@@ -50,7 +48,9 @@ var bandwidth_data,
 		command_response_box_jquery,
 		concurrent_requests_num = 0,
 		last_bandwidth_time,
-		bandwidth_started = 0; // timestamp of last bandwidth data in seconds
+		bandwidth_started = 0, // timestamp of last bandwidth data in seconds
+		user_events = [],
+		user_events_num = 0;
 
 function strcmp(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
@@ -101,11 +101,20 @@ function custom_command_handle_key(event) {
 		new_custom_command_input.textContent = custom_command_command;
 		custom_command_console_jquery.append(new_custom_command_input);
 		custom_command_console.scrollTop = custom_command_console.scrollHeight;
+
+		if (custom_command_command.substr(0, 10).toUpperCase() == 'SETEVENTS ')
+		{
+			user_events = custom_command_command.substr(10).toUpperCase()
+					.split(' ');
+			user_events.sort();
+			user_events_num = user_events.length;
+		}
+
 		custom_command_request(
 				custom_command_command,
 				function(data) {
 					var new_custom_command_output =
-						$('<div class="console_output"></div>'),
+							$('<div class="console_output"></div>'),
 							new_custom_command_output_line,
 							last_line, // position of start of current line in
 							//response
@@ -124,7 +133,6 @@ function custom_command_handle_key(event) {
 						new_custom_command_output
 								.append(new_custom_command_output_line);
 					}
-					new_custom_command_output.innerHTML = data;
 					custom_command_console_jquery
 							.append(new_custom_command_output[0]);
 					custom_command_console.scrollTop
@@ -303,8 +311,6 @@ function update_status_handle(data) {
 	 * 	bandwidth
 	 * 	portlist
 	 * Seperators are "\t".
-	 * Next line is "a" followed by a timestamp in miliseconds in decimal
-	 * meaning the next time_start or empty.
 	 * Each of the next lines is a timestamp in miliseconds in decimal followed
 	 * by a line of response for one of the following asynchronous events
 	 * without "650" at the beginning of the line.
@@ -344,7 +350,8 @@ function update_status_handle(data) {
 					var last_line = 0, // position of start of current line
 							current_line, // position of end of current line
 							num, new_list, line, new_list_elements, new_element,
-							new_element_1, new_element_1_jquery, new_element_1;
+							new_element_1, new_element_1_jquery,
+							new_element_jquery;
 
 					status_fields[0].textContent = 'succeeded';
 					for (var a = 1; a < 9; a++) {
@@ -751,26 +758,10 @@ function update_status_handle(data) {
 					or_contents = new_list;
 					or_elements = new_list_elements;
 
-					// to set update_status_time_start or store asynchronouns
-					// events
-					current_line = data_from_server_list.data.indexOf('\n',
-							last_line);
-					if (data_from_server_list.data[last_line] == 'a') {
-						var line, a = Number(line = data_from_server_list.data
-								.substr(last_line + 1, current_line - 1
-										- last_line));
-						if (isNaN(a)) {
-							console
-									.log("invalid value for time_start\n"
-											+ line);
-						} else {
-							update_status_time_start = a;
-						}
-					}
-					last_line = current_line + 1;
+					// to store asynchronous events
 					while ((current_line = data_from_server_list.data.indexOf(
 							'\n', last_line)) != -1) {
-						var tmpstr, a, b, c, time, event_name;
+						var tmpstr, a, b, c, d, e, time, event_name;
 						a = data_from_server_list.data.indexOf(' ', last_line);
 						time = Number(tmpstr = data_from_server_list.data
 								.substr(last_line, a - last_line));
@@ -785,6 +776,43 @@ function update_status_handle(data) {
 							event_name = data_from_server_list.data.substr(a, b
 									- a);
 							b++;
+
+							// If the event name matches any events entered from
+							// the console, the event is added to the console.
+							c = 0;
+							d = user_events_num;
+							while (c < d) {
+								e = (c + d) >> 1;
+								if (user_events[e] < event_name)
+									c = e + 1;
+								else if (user_events[e] > event_name)
+									d = e;
+								else {
+									new_element_jquery = $(
+									'<div class="console_output_line"></div>');
+									new_element_1 = $(
+									'<span class="custom_command_time"></span>')
+									[0];
+									new_element_1.textContent = new Date(time)
+											.toGMTString();
+									new_element_jquery.append(new_element_1);
+									new_element_1 = $('<span></span>')[0];
+									new_element_1.textContent = "650 "
+											+ data_from_server_list.data
+											.substr(a, current_line - a);
+									new_element_jquery.append(new_element_1);
+									new_element_1_jquery =
+									$('<div class="console_output"></div>');
+									new_element_1_jquery
+											.append(new_element_jquery[0]);
+									custom_command_console_jquery
+											.append(new_element_1_jquery[0]);
+									custom_command_console.scrollTop
+									= custom_command_console.scrollHeight;
+									break;
+								}
+							}
+
 							if (event_name == "BW") {
 								var upload, download, new_bandwidth_time;
 								a = b;
@@ -859,10 +887,6 @@ function update_status_handle(data) {
 								c = 0;
 								while (1) {
 									if (c == 4) {
-										console
-												.log(
-									"unrecognized name for asynchronous event\n"
-														+ event_name);
 										break;
 									}
 									if (message_event_names[c] == event_name) {
@@ -939,7 +963,7 @@ function update_status_handle(data) {
 					$.post(php_tor_controller_url, {
 						'action' : 'geoip',
 						'ip_addr' : geoip_todo_addr
-								.slice(0, geoip_todo_num_new).join(';')
+								.slice(0, geoip_todo_num_new).join('-')
 					}, function(data) {
 						for (var a = 0; a < geoip_todo_num_new; a++) {
 							var country = data.substr(a * 2, 2);
@@ -975,17 +999,14 @@ function update_status() {
 			type : 'POST',
 			url : php_tor_controller_url,
 			data : {
-				'action' : 'update_status',
-				'time_start' : String(update_status_time_start)
+				'action' : 'update_status'
 			},
-			timeout : update_status_timeout,
 			success : update_status_handle,
 			complete : function() {
 				concurrent_requests_num--;
 			}
 		});
 	}
-	update_status_time_start += update_status_interval;
 }
 
 function body_loaded() {
@@ -1017,7 +1038,7 @@ function body_loaded() {
 						/*
 						 * Data will be empty if something fails on the server
 						 * side.
-						 * 
+						 *
 						 * Otherwise, the first line of response is a number in
 						 * decimal n. The next n lines are 2 decimal numbers
 						 * seperated by ",". The first is download rate. The
