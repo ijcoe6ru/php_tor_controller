@@ -3085,11 +3085,18 @@ class event_cache_type {
 function get_response() {
 	global $tc;
 
-	if (($response_new_chunk = fread ( $tc, tc_max_response_chunk_length )) === false)
+	if (($response = fread ( $tc, tc_max_response_chunk_length )) === false)
 		return null;
-	$response = $response_new_chunk;
 	if ($response === '')
 		return $response;
+	while ( substr ( $response, - 2 ) !== "\r\n" ) {
+		do {
+			$response_new_chunk = fread ( $tc, tc_max_response_chunk_length );
+			if ($response_new_chunk === false)
+				return null;
+		} while ( $response_new_chunk === '' );
+		$response .= $response_new_chunk;
+	}
 	if ($response [3] === ' ')
 		return $response;
 	else {
@@ -4161,6 +4168,8 @@ if ($tc) {
 				}
 			}
 		} else {
+			if ($action !== '')
+				exit ();
 			$error_message .= "<p>
 						Authentication failed
 					</p>
@@ -4178,7 +4187,7 @@ if ($tc) {
 	}
 } else {
 	if ($action !== '')
-		exit ();
+		exit;
 	$error_message .= "<p>
 				Failed to connect to tor.
 			</p>
