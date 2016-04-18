@@ -1012,6 +1012,64 @@ function update_status() {
 	}
 }
 
+function initial_request_handle(data) {
+	/*
+	 * Data will be empty if something fails on the server side.
+	 *
+	 * Otherwise, the first line of response is a number in decimal n. The next
+	 * n lines are 2 decimal numbers seperated by ",". The first is download
+	 * rate. The second is upload rate. Each line represents 1 second. They are
+	 * in chronological order. Line breaks are "\n".
+	 */
+	if (data) {
+		var num, last_line = 0, current_line, tmpstr;
+		current_line = data.indexOf('\n');
+		if (isNaN(num = Number(tmpstr = data.substr(0, current_line)))) {
+			console
+					.log("invalid value for number of bandwidth data\n"
+							+ tmpstr);
+		} else {
+			var upload, download, now;
+			now = new Date().getTime();
+			while (num) {
+				var comma;
+				last_line = current_line + 1;
+				current_line = data.indexOf('\n', last_line);
+				comma = data.indexOf(',', last_line);
+				if (isNaN(download = Number(tmpstr = data.substr(last_line,
+						comma - last_line)))) {
+					console.log("invalid value for download rate\n" + tmpstr);
+					break;
+				}
+				comma++;
+				if (isNaN(upload = Number(tmpstr = data.substr(comma,
+						current_line - comma)))) {
+					console.log("invalid value for upload rate\n" + tmpstr);
+					break;
+				}
+
+				if (bandwidth_last_index)
+					bandwidth_last_index--;
+				else
+					bandwidth_last_index = bandwidth_data_size - 1;
+				if (bandwidth_first_index == bandwidth_last_index) {
+					if (bandwidth_first_index)
+						bandwidth_first_index--;
+					else
+						bandwidth_first_index = bandwidth_data_size - 1;
+				}
+				bandwidth_data[bandwidth_last_index] = {
+					upload : upload,
+					download : download,
+					time : now - num * 1000
+				};
+
+				num--;
+			}
+		}
+	}
+}
+
 function body_loaded() {
 	bandwidth_data = Array(bandwidth_data_size);
 	messages_data = Array(messages_data_size);
@@ -1030,89 +1088,12 @@ function body_loaded() {
 	tor_options_default = $('.tor_options_default_checkbox');
 	status_fields = $('#status_table td');
 	command_response_box_jquery = $("#command_response_box");
-	update_status();
-	$
-			.post(
-					php_tor_controller_url,
-					{
-						'action' : 'get_bandwidth_history'
-					},
-					function(data) {
-						/*
-						 * Data will be empty if something fails on the server
-						 * side.
-						 *
-						 * Otherwise, the first line of response is a number in
-						 * decimal n. The next n lines are 2 decimal numbers
-						 * seperated by ",". The first is download rate. The
-						 * second is upload rate. Each line represents 1 second.
-						 * They are in chronological order. Line breaks are
-						 * "\n".
-						 */
-						if (data) {
-							var num, last_line = 0, current_line, tmpstr;
-							current_line = data.indexOf('\n');
-							if (isNaN(num = Number(tmpstr = data.substr(0,
-									current_line)))) {
-								console
-										.log(
-								"invalid value for number of bandwidth data\n"
-												+ tmpstr);
-							} else {
-								var upload, download, now;
-								now = new Date().getTime();
-								while (num) {
-									var comma;
-									last_line = current_line + 1;
-									current_line = data
-											.indexOf('\n', last_line);
-									comma = data.indexOf(',', last_line);
-									if (isNaN(download = Number(tmpstr = data
-											.substr(last_line, comma
-													- last_line)))) {
-										console
-												.log(
-											"invalid value for download rate\n"
-														+ tmpstr);
-										break;
-									}
-									comma++;
-									if (isNaN(upload = Number(tmpstr = data
-											.substr(comma, current_line
-													- comma)))) {
-										console
-												.log(
-											"invalid value for upload rate\n"
-														+ tmpstr);
-										break;
-									}
-
-									if (bandwidth_last_index)
-										bandwidth_last_index--;
-									else
-										bandwidth_last_index
-												= bandwidth_data_size - 1;
-									if (bandwidth_first_index
-											== bandwidth_last_index) {
-										if (bandwidth_first_index)
-											bandwidth_first_index--;
-										else
-											bandwidth_first_index
-													= bandwidth_data_size - 1;
-									}
-									bandwidth_data[bandwidth_last_index] = {
-										upload : upload,
-										download : download,
-										time : now - num * 1000
-									};
-
-									num--;
-								}
-							}
-						}
-
-						setInterval(update_status, update_status_interval);
-					});
+	$.post(php_tor_controller_url, {
+		'action' : 'get_bandwidth_history'
+	}, initial_request_handle).always(function() {
+		update_status();
+		setInterval(update_status, update_status_interval)
+	});
 }
 
 function update_settings_button_handle() {
