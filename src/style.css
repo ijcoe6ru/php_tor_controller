@@ -94,15 +94,15 @@
 	height: 436px;
 }
 
-#upload_path {
+.upload_path {
 	stroke: red;
 }
 
-#download_path {
+.download_path {
 	stroke: blue;
 }
 
-#upload_path, #download_path {
+.upload_path, .download_path {
 	stroke-width: 1px;
 	fill: none;
 }
@@ -235,4 +235,25 @@ table {
 
 .custom_command_time {
 	color: green;
+}
+
+@keyframes bandwidth_data_path_slide {
+	from {
+	}
+	
+	to {
+		transform: translateX(-600px);
+	}
+}
+
+#custom_command_hint_box {
+	position: absolute;
+	z-index: 2;
+	display: none;
+	margin-top: 28px;
+	margin-left: 4px;
+	background-color: white;
+	border-color: black;
+	border-width: 2px;
+	border-style: solid;
 }

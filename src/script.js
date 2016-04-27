@@ -1,25 +1,24 @@
-var bandwidth_data,
-		bandwidth_last_index = 0,
-		bandwidth_first_index = 0,
+var bandwidth_shown_object,
+		bandwidth_total_object,
 		bandwidth_data_size,
 		bandwidth_graph_max_rate = 4,
 		bandwidth_graph_px_per_ms = 0.01,
 		bandwidth_graph_x_numbers,
 		bandwidth_graph_y_numbers,
  		message_event_names = [	'INFO', 'NOTICE', 'WARN', 'ERR' ],
- 		messages_hide = 1, // each bit means whether to display messages of the
+ 		messages_hide = 3, // each bit means whether to display messages of the
  		//corresponding severity
  		get_events_timea = 0,
  		tor_options_row_group,
- 		tor_options_value, // the input elements for each value
+		tor_options_value, // the input elements for each value
  		tor_options_default, // the checkboxes for whether to use default value
  		custom_commands_executed = null,
  		custom_commands_executed_scroll = null,
  		custom_command_console_jquery,
- 		php_tor_controller_url,
+ 		php_tor_controller_url = window.location.pathname,
  		tor_options_categories,
  		tor_options_number,
- 		tor_options_name,
+		tor_options_name,
  		update_status_interval,
  		status_fields,
  		stream_tbody,
@@ -47,10 +46,20 @@ var bandwidth_data,
 		messages_tbody,
 		command_response_box_jquery,
 		concurrent_requests_num = 0,
-		last_bandwidth_time,
-		bandwidth_started = 0, // timestamp of last bandwidth data in seconds
+		last_bandwidth_time, // timestamp of last bandwidth data in seconds
+		bandwidth_started = 0,
 		user_events = [],
-		user_events_num = 0;
+		user_events_num = 0,
+		bandwidth_data_type_stream = 0,
+		bandwidth_data_type_circ = 1,
+		bandwidth_data_all_serial = 1,
+		bandwidth_shown_type_jquery,
+		bandwidth_graph_path_container_jquery,
+ 		bandwidth_graph_path_group = null,
+ 		stream_ids = [],
+ 		circuit_ids = [],
+  		bandwidth_select_object_to_remove = null,
+  		custom_command_hint_box_jquery;
 
 function strcmp(a, b) {
 	return a < b ? -1 : a > b ? 1 : 0;
@@ -59,6 +68,93 @@ function strcmp(a, b) {
 var geoip_tree = new RBTree(function(a, b) {
 	return strcmp(a.ip, b.ip);
 });
+
+function cmp_id(a, b) {
+	return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+}
+
+var bandwidth_data_type = [ new RBTree(cmp_id), new RBTree(cmp_id) ];
+
+function cmp_all_bandwidth_data(a, b) {
+	return a.serial < b.serial ? -1 : a.serial > b.serial ? 1 : 0;
+}
+
+var bandwidth_data_all_tree = new RBTree(cmp_all_bandwidth_data);
+
+function bandwidth_data_insert(bandwidth_object, download, upload, time) {
+	var data = bandwidth_object.data;
+	if (bandwidth_object.last_index)
+		bandwidth_object.last_index--;
+	else
+		bandwidth_object.last_index = bandwidth_data_size - 1;
+	if (bandwidth_object.last_index == bandwidth_object.first_index) {
+		if (bandwidth_object.first_index)
+			bandwidth_object.first_index--;
+		else
+			bandwidth_object.first_index = bandwidth_data_size - 1;
+	}
+	data[bandwidth_object.last_index] = {
+		download : download,
+		upload : upload,
+		time : time
+	};
+}
+
+function bandwidth_data_type_insert(type, id, download, upload, time) {
+	var tree_this = bandwidth_data_type[type],
+			node_this = tree_this
+			.find({
+				id : id
+			});
+	if (node_this) {
+		bandwidth_data_insert(node_this, download, upload, time);
+	} else {
+		var data = Array(bandwidth_data_size),
+				name = [ 'stream ', 'circuit ' ],
+				select_object;
+		data[0] = {
+			download : download,
+			upload : upload,
+			time : time
+		};
+		select_object=$('<option value="'
+				+ String(bandwidth_data_all_serial) + '">' + name[type]
+				+ String(id) + '</option>')[0];
+		node_this = {
+			id : id,
+			data : data,
+			first_index : 1,
+			last_index : 0,
+			serial : bandwidth_data_all_serial,
+			select_object : select_object
+		};
+		tree_this.insert(node_this);
+		bandwidth_data_all_tree.insert(node_this);
+		bandwidth_shown_type_jquery.append(select_object);
+		if (bandwidth_data_all_serial < 0xffffffff)
+			bandwidth_data_all_serial++;
+		else
+			bandwidth_data_all_serial = 1;
+	}
+}
+
+/*
+ * This function finds an element in a sorted array. It returns 1 if found, 0
+ * otherwise.
+ */
+function in_sorted_array(haystack, range, needle) {
+	var start = 0, end = range, middle;
+	while (start < end) {
+		middle = (start + end) >> 1;
+		if (haystack[middle] < needle)
+			start = middle + 1;
+		else if (haystack[middle] > needle)
+			end = middle;
+		else
+			return 1;
+	}
+	return 0;
+}
 
 function bandwidth_graph_y_numbers_update() {
 	var a = bandwidth_graph_max_rate >> 2;
@@ -80,7 +176,9 @@ function custom_command_request(command, handler) {
 	$.post(php_tor_controller_url, {
 		'action' : 'custom_command',
 		'custom_command_command' : command
-	}, handler);
+	}, handler).fail(function() {
+		alert("failed to execute command");
+	});
 }
 
 function custom_command_handle_key(event) {
@@ -125,14 +223,14 @@ function custom_command_handle_key(event) {
 							//response
 
 					last_line = 0;
-					while ((current_line = data.indexOf("\r\n", last_line))
+					while ((current_line = data.indexOf("\n", last_line))
 							!= -1) {
 						new_custom_command_output_line
 								= $('<div class="console_output_line"></div>')
 								[0];
 						new_custom_command_output_line.textContent = data
 								.substr(last_line, current_line - last_line);
-						last_line = current_line + 2;
+						last_line = current_line + 1;
 						new_custom_command_output
 								.append(new_custom_command_output_line);
 					}
@@ -142,75 +240,195 @@ function custom_command_handle_key(event) {
 							= custom_command_console.scrollHeight;
 				});
 		custom_command_input_box.value = '';
-	} else if (key == 38)// up
-	{
-		if (custom_commands_executed_scroll)
-			tmp = custom_commands_executed_scroll.last;
-		else
-			tmp = custom_commands_executed;
-		if (tmp) {
-			custom_commands_executed_scroll = tmp;
-			custom_command_input_box.value
-					= custom_commands_executed_scroll.command;
-		}
-	} else if (key == 40)// down
-	{
-		if (custom_commands_executed_scroll) {
-			custom_commands_executed_scroll
-					= custom_commands_executed_scroll.next;
+	} else {
+		if (key == 38)// up
+		{
 			if (custom_commands_executed_scroll)
+				tmp = custom_commands_executed_scroll.last;
+			else
+				tmp = custom_commands_executed;
+			if (tmp) {
+				custom_commands_executed_scroll = tmp;
 				custom_command_input_box.value
 						= custom_commands_executed_scroll.command;
-			else
-				custom_command_input_box.value = '';
+			}
+		} else if (key == 40)// down
+		{
+			if (custom_commands_executed_scroll) {
+				custom_commands_executed_scroll
+						= custom_commands_executed_scroll.next;
+				if (custom_commands_executed_scroll)
+					custom_command_input_box.value
+							= custom_commands_executed_scroll.command;
+				else
+					custom_command_input_box.value = '';
+			}
 		}
 	}
 }
 
+function custom_command_handle_change() {
+	// to add hint
+	var control_commands = [
+					"ADD_ONION",
+					"ATTACHSTREAM",
+					"AUTHCHALLENGE",
+					"AUTHENTICATE",
+					"CLOSECIRCUIT",
+					"CLOSESTREAM",
+					"DEL_ONION",
+					"DROPGUARDS",
+					"EXTENDCIRCUIT",
+					"GETCONF",
+					"GETINFO",
+					"HSFETCH",
+					"HSPOST",
+					"LOADCONF",
+					"MAPADDRESS",
+					"POSTDESCRIPTOR",
+					"PROTOCOLINFO",
+					"QUIT",
+					"REDIRECTSTREAM",
+					"RESETCONF",
+					"RESOLVE",
+					"SAVECONF",
+					"SETCIRCUITPURPOSE",
+					"SETCONF",
+					"SETEVENTS",
+					"SETROUTERPURPOSE",
+					"SIGNAL",
+					"TAKEOWNERSHIP",
+					"USEFEATURE"
+			];
+
+	var typed = custom_command_input_box.value, len = typed.length, from = 0,
+			to = 0;
+
+	if (len && len < 18) {
+		var a = 29, b, c;
+		from = 0;
+		to = 29;
+		typed = typed.toUpperCase();
+		while (from < a) {
+			b = (from + a) >> 1;
+			c = control_commands[b].substr(0, len);
+			if (c < typed)
+				from = b + 1;
+			else {
+				a = b;
+				if (c > typed)
+					to = b;
+			}
+		}
+		a = from;
+		while (a < to) {
+			b = (a + to) >> 1;
+			c = control_commands[b].substr(0, len);
+			if (c <= typed)
+				a = b + 1;
+			else
+				to = b;
+		}
+	}
+
+	if (from < to) {
+		custom_command_hint_box_jquery.empty();
+		var caret_position = getCaretCoordinates(custom_command_input_box, 0);
+		while (from < to) {
+			var new_element;
+			new_element = $('<div class="custom_command_hint"></div>')[0];
+			new_element.textContent = control_commands[from];
+			custom_command_hint_box_jquery.append(new_element);
+			from++;
+		}
+		custom_command_hint_box_jquery.css('top', String(caret_position.top
+				+ custom_command_input_box.offsetTop)
+				+ 'px');
+		custom_command_hint_box_jquery.css('left', String(caret_position.left
+				+ custom_command_input_box.style.offsetLeft)
+				+ 'px');
+		custom_command_hint_box_jquery.show();
+	} else
+		custom_command_hint_box_jquery.hide();
+}
+
 function update_bandwidth_graph() {
 	// bandwidth graph is from (90,50) to(690,350)
-	var current_index, current_item, now, upload_path_content = '',
-			download_path_content = '', x, x1, current_max_rate = 4,
-			path_started = 0;
+	while (1) {
+		var current_index = bandwidth_shown_object.last_index, current_item,
+				now, upload_path_content = '', download_path_content = '', x,
+				x1, current_max_rate = 4, path_started = 0,
+				first_index = bandwidth_shown_object.first_index,
+				bandwidth_data = bandwidth_shown_object.data, download = 0,
+				upload = 0, download_last = 0, upload_last = 0;
 
-	current_index = bandwidth_last_index;
-	while (current_index != bandwidth_first_index) {
-		current_item = bandwidth_data[current_index];
-		now = Date.now();
-		x = (now - current_item.time) * bandwidth_graph_px_per_ms;
-		current_item = bandwidth_data[current_index];
-		while (current_item.upload > current_max_rate)
-			current_max_rate <<= 1;
-		while (current_item.download > current_max_rate)
-			current_max_rate <<= 1;
-		x = (now - current_item.time) * bandwidth_graph_px_per_ms;
-		x1 = String(690 - x);
-		upload_path_content += (path_started ? 'L' : 'M')
-				+ x1
-				+ ' '
-				+ String(350 - current_item.upload * 300
-						/ bandwidth_graph_max_rate);
-		download_path_content += (path_started ? 'L' : 'M')
-				+ x1
-				+ ' '
-				+ String(350 - current_item.download * 300
-						/ bandwidth_graph_max_rate);
-		if (x > 600)
-			break;
-		current_index++;
-		if (current_index == bandwidth_data_size)
-			current_index = 0;
-		path_started = 1;
-	}
-	if (current_max_rate != bandwidth_graph_max_rate) {
+		if (bandwidth_graph_path_group)
+			$(bandwidth_graph_path_group).remove();
+
+		while (current_index != first_index) {
+			current_item = bandwidth_data[current_index];
+			now = Date.now();
+			x = (now - current_item.time) * bandwidth_graph_px_per_ms;
+			current_item = bandwidth_data[current_index];
+			upload = current_item.upload;
+			download = current_item.download;
+			while (upload > current_max_rate)
+				current_max_rate <<= 1;
+			while (download > current_max_rate)
+				current_max_rate <<= 1;
+			x = (now - current_item.time) * bandwidth_graph_px_per_ms;
+			x1 = String(690 - x);
+			upload_path_content += (path_started ? 'L' : 'M') + x1 + ' '
+					+ String(350 - upload * 300 / bandwidth_graph_max_rate);
+			download_path_content += (path_started ? 'L' : 'M') + x1 + ' '
+					+ String(350 - download * 300 / bandwidth_graph_max_rate);
+			if (x > 600)
+				break;
+			current_index++;
+			if (current_index == bandwidth_data_size)
+				current_index = 0;
+
+			if (!path_started) {
+				path_started = 1;
+				download_last = download;
+				upload_last = upload;
+			}
+		}
+		if (current_max_rate == bandwidth_graph_max_rate) {
+			var upload_path, download_path;
+
+
+			bandwidth_graph_path_group= document.createElementNS(
+					"http://www.w3.org/2000/svg", 'g');
+			bandwidth_graph_path_group.style.animationName
+				= 'bandwidth_data_path_slide';
+			bandwidth_graph_path_group.style.animationDuration
+					= String(0.6 / bandwidth_graph_px_per_ms) + 's';
+			bandwidth_graph_path_group.style.animationTimingFunction = 'linear';
+
+			upload_path = document.createElementNS('http://www.w3.org/2000/svg',
+					'path');
+			upload_path.setAttribute('class', 'upload_path');
+			upload_path.setAttribute('d', upload_path_content);
+			bandwidth_graph_path_group.appendChild(upload_path);
+
+			download_path = document.createElementNS(
+					'http://www.w3.org/2000/svg', 'path');
+			download_path.setAttribute('class', 'download_path');
+			download_path.setAttribute('d', download_path_content);
+			bandwidth_graph_path_group.appendChild(download_path);
+
+			bandwidth_graph_path_container_jquery.append(
+					bandwidth_graph_path_group);
+			bandwidth_graph_current_download_rate_number.innerHTML
+					= String(download_last);
+			bandwidth_graph_current_upload_rate_number.innerHTML
+					= String(upload_last);
+			return;
+		}
 		bandwidth_graph_max_rate = current_max_rate;
 		bandwidth_graph_y_numbers_update();
-	} else {
-		upload_path.setAttribute('d', upload_path_content);
-		download_path.setAttribute('d', download_path_content);
 	}
-
-	requestAnimationFrame(update_bandwidth_graph);
 }
 
 function tor_options_change_category(category) {
@@ -230,12 +448,12 @@ function custom_command_popup(command) {
 				var new_custom_command_output_line, last_line, current_line;
 				command_command_box.textContent = command;
 				last_line = 0;
-				while ((current_line = data.indexOf("\r\n", last_line)) != -1) {
+				while ((current_line = data.indexOf("\n", last_line)) != -1) {
 					new_custom_command_output_line
 							= $('<div class="console_output_line"></div>')[0];
 					new_custom_command_output_line.textContent = data.substr(
 							last_line, current_line - last_line);
-					last_line = current_line + 2;
+					last_line = current_line + 1;
 					command_response_box_jquery
 							.append(new_custom_command_output_line);
 				}
@@ -269,7 +487,15 @@ function sort(array, array_sat, start, end) {
 		sort(array, array_sat, b + 1, end);
 }
 
-function update_status_handle(data) {
+function number_compare(a, b) {
+	return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function update_status_fail_handler() {
+	status_fields[0].textContent = 'failed';
+}
+
+function update_status_handler(data) {
 	/*
 	 * data will be empty if something fails on the server side.
 	 *
@@ -354,7 +580,7 @@ function update_status_handle(data) {
 							current_line, // position of end of current line
 							num, new_list, line, new_list_elements, new_element,
 							new_element_1, new_element_1_jquery,
-							new_element_jquery;
+							new_element_jquery, new_stream_ids, new_circuit_ids;
 
 					status_fields[0].textContent = 'succeeded';
 					for (var a = 1; a < 9; a++) {
@@ -381,6 +607,7 @@ function update_status_handle(data) {
 					last_line = current_line + 1;
 					new_list = Array(num);
 					new_list_elements = Array(num);
+					new_stream_ids = Array(num);
 					for (var a = 0; a < num; a++) {
 						var b, c, d;
 						current_line = data_from_server_list.data.indexOf('\n',
@@ -399,13 +626,29 @@ function update_status_handle(data) {
 								else if (stream_contents[d] == line) {
 									new_list_elements[a] = stream_elements[d];
 									stream_elements[d] = null;
+									new_stream_ids[a] = Number(
+											data_from_server_list.data
+											.substr(last_line,
+													data_from_server_list.data
+															.indexOf(' ',
+																	last_line)
+															- last_line));
 									break;
 								} else
 									b = d + 1;
 							} else {
 								new_element = $('<tr></tr>');
-								e = last_line;
-								for (g = 0; g < 4; g++) {
+								e = data_from_server_list.data.indexOf(' ',
+										last_line);
+								new_stream_ids[a] = Number(tmpstr
+										= data_from_server_list
+										.data
+										.substr(last_line, e - last_line));
+								e++;
+								new_element_1 = $('<td></td>')[0];
+								new_element_1.textContent = tmpstr;
+								new_element.append(new_element_1);
+								for (g = 1; g < 4; g++) {
 									f = data_from_server_list.data.indexOf(' ',
 											e);
 									new_element_1 = $('<td></td>')[0];
@@ -426,11 +669,39 @@ function update_status_handle(data) {
 					for (var a = 0; a < stream_num; a++)
 						if (stream_elements[a])
 							$(stream_elements[a]).remove();
+
+					// to remove bandwidth data of streams that don't exist
+					new_stream_ids.sort(number_compare);
+					for (var a = 0; a < stream_num; a++) {
+						var bandwidth_tree
+								= bandwidth_data_type
+										[bandwidth_data_type_stream],
+								bandwidth_object, select_object;
+						if (!in_sorted_array(new_stream_ids, num,
+								stream_ids[a])) {
+							if (bandwidth_object = bandwidth_tree.find({
+								id : stream_ids[a]
+							})) {
+								bandwidth_tree.remove(bandwidth_object);
+								bandwidth_data_all_tree
+										.remove(bandwidth_object);
+								select_object = bandwidth_object.select_object;
+								if (select_object.selected)
+									bandwidth_select_object_to_remove
+											= select_object;
+								else
+									$(select_object).remove();
+							}
+						}
+					}
+					stream_ids = new_stream_ids;
+
 					stream_number.textContent = num;
 					stream_num = num;
 					sort(new_list, new_list_elements, 0, num - 1);
 					stream_contents = new_list;
 					stream_elements = new_list_elements;
+
 
 					// to update orconn status
 					current_line = data_from_server_list.data.indexOf('\n',
@@ -515,6 +786,7 @@ function update_status_handle(data) {
 					last_line = current_line + 1;
 					new_list = Array(num);
 					new_list_elements = Array(num);
+					new_circuit_ids = Array(num);
 					for (var a = 0; a < num; a++) {
 						var b, c, d;
 						current_line = data_from_server_list.data.indexOf('\n',
@@ -533,13 +805,28 @@ function update_status_handle(data) {
 								else if (circuit_contents[d] == line) {
 									new_list_elements[a] = circuit_elements[d];
 									circuit_elements[d] = null;
+									new_circuit_ids[a] = Number(
+											data_from_server_list.data
+											.substr(last_line,
+													data_from_server_list.data
+															.indexOf(' ',
+																	last_line)
+															- last_line));
 									break;
 								} else
 									b = d + 1;
 							} else {
 								new_element = $('<tr></tr>');
-								e = last_line;
-								for (g = 0; g < 12; g++) {
+								e = data_from_server_list.data.indexOf(' ',
+										last_line);
+								new_circuit_ids[a] = Number(tmpstr
+										= data_from_server_list.data
+										.substr(last_line, e - last_line));
+								e++;
+								new_element_1 = $('<td></td>')[0];
+								new_element_1.textContent = tmpstr;
+								new_element.append(new_element_1);
+								for (g = 1; g < 12; g++) {
 									f = data_from_server_list.data.indexOf(' ',
 											e);
 									new_element_1 = $('<td></td>')[0];
@@ -560,6 +847,33 @@ function update_status_handle(data) {
 					for (var a = 0; a < circuit_num; a++)
 						if (circuit_elements[a])
 							$(circuit_elements[a]).remove();
+
+					// to remove bandwidth data of circuits that don't exist
+					new_circuit_ids.sort(number_compare);
+					for (var a = 0; a < circuit_num; a++) {
+						var bandwidth_tree
+								= bandwidth_data_type
+										[bandwidth_data_type_circ],
+								bandwidth_object, select_object;
+						if (!in_sorted_array(new_circuit_ids, num,
+								circuit_ids[a])) {
+							if (bandwidth_object = bandwidth_tree.find({
+								id : circuit_ids[a]
+							})) {
+								bandwidth_tree.remove(bandwidth_object);
+								bandwidth_data_all_tree
+										.remove(bandwidth_object);
+								select_object = bandwidth_object.select_object;
+								if (select_object.selected)
+									bandwidth_select_object_to_remove
+											= select_object;
+								else
+									$(select_object).remove();
+							}
+						}
+					}
+					circuit_ids = new_circuit_ids;
+
 					circuit_number.textContent = num;
 					circuit_num = num;
 					sort(new_list, new_list_elements, 0, num - 1);
@@ -765,7 +1079,10 @@ function update_status_handle(data) {
 					while ((current_line = data_from_server_list.data.indexOf(
 							'\n', last_line)) != -1) {
 						var tmpstr, a, b, c, d, e, time, event_name;
-						a = data_from_server_list.data.indexOf(' ', last_line);
+						for (a = last_line + 1; data_from_server_list.data
+								.charCodeAt(a) <= '9'.charCodeAt(0)
+								&& data_from_server_list.data.charCodeAt(a)
+								>= '0'.charCodeAt(0); a++);
 						time = Number(tmpstr = data_from_server_list.data
 								.substr(last_line, a - last_line));
 						if (isNaN(time)) {
@@ -816,6 +1133,7 @@ function update_status_handle(data) {
 								}
 							}
 
+							// bandwidth
 							if (event_name == "BW") {
 								var upload, download, new_bandwidth_time;
 								a = b;
@@ -836,24 +1154,9 @@ function update_status_handle(data) {
 											"invalid value for upload rate\n"
 													+ tmpstr);
 								} else {
-									if (bandwidth_last_index)
-										bandwidth_last_index--;
-									else
-										bandwidth_last_index =
-											bandwidth_data_size - 1;
-									if (bandwidth_first_index
-											== bandwidth_last_index) {
-										if (bandwidth_first_index)
-											bandwidth_first_index--;
-										else
-											bandwidth_first_index =
-												bandwidth_data_size - 1;
-									}
-									bandwidth_data[bandwidth_last_index] = {
-										upload : upload,
-										download : download,
-										time : time
-									};
+									bandwidth_data_insert(
+											bandwidth_total_object, download,
+											upload, time);
 
 									// a message is generated if the time
 									// receiving bandwidth data is not
@@ -876,17 +1179,91 @@ function update_status_handle(data) {
 										bandwidth_started = 1;
 									}
 									last_bandwidth_time = new_bandwidth_time;
-
-									bandwidth_graph_current_download_rate_number
-											.innerHTML = String(download);
-									bandwidth_graph_current_upload_rate_number
-											.innerHTML = String(upload);
 								}
 							}
 
+							// stream bandwidth
+							else if (event_name == 'STREAM_BW') {
+								var upload, download, id;
+								a = b;
+								b = data_from_server_list.data.indexOf(' ', a);
+								if (isNaN(id = Number(tmpstr
+										= data_from_server_list.data
+										.substr(a, b - a)))) {
+									console.log("invalid value for stream id\n"
+											+ tmpstr);
+								} else {
+									a = b + 1;
+									b = data_from_server_list.data.indexOf(' ',
+											a);
+									if (isNaN(upload = Number(tmpstr
+											= data_from_server_list.data
+											.substr(a, b - a)))) {
+										console
+												.log(
+											"invalid value for download rate\n"
+														+ tmpstr);
+									} else if (isNaN(download = Number(tmpstr
+											= data_from_server_list.data
+											.substr(b + 1,
+													current_line - b - 1)))) {
+										console
+												.log(
+											"invalid value for upload rate\n"
+														+ tmpstr);
+									} else {
+										bandwidth_data_type_insert(
+												bandwidth_data_type_stream, id,
+												download, upload, time);
+									}
+								}
+							}
+
+							// circuit bandwidth
+							else if (event_name == 'CIRC_BW') {
+								var upload, download, id;
+								a = data_from_server_list.data.indexOf('=', a)
+										+ 1;
+								b = data_from_server_list.data.indexOf(' ', a);
+								if (isNaN(id = Number(tmpstr
+										= data_from_server_list.data
+										.substr(a, b - a)))) {
+									console.log("invalid value for circuit id\n"
+											+ tmpstr);
+								} else {
+									a = data_from_server_list.data.indexOf('=',
+											b + 1) + 1;
+									b = data_from_server_list.data.indexOf(' ',
+											a);
+									if (isNaN(download = Number(tmpstr
+											= data_from_server_list.data
+											.substr(a, b - a)))) {
+										console
+												.log(
+											"invalid value for download rate\n"
+														+ tmpstr);
+									} else {
+										a = data_from_server_list.data.indexOf(
+												'=', b) + 1;
+										if (isNaN(upload = Number(tmpstr =
+											data_from_server_list.data
+												.substr(a, current_line - a))))
+										{
+											console
+													.log(
+											"invalid value for upload rate\n"
+															+ tmpstr);
+										} else {
+											bandwidth_data_type_insert(
+													bandwidth_data_type_circ,
+													id, download, upload, time);
+										}
+									}
+								}
+							}
+
+							// notifications
 							else {
-								// If event_name is not "BW", names for
-								// notifications are tried.
 								c = 0;
 								while (1) {
 									if (c == 4) {
@@ -938,7 +1315,7 @@ function update_status_handle(data) {
 						last_line = current_line + 1;
 					}
 				} else
-					status_fields[0].textContent = 'failed';
+					update_status_fail_handler();
 				data_from_server_list = data_from_server_list.next;
 			} else {
 				// We set data_from_server_list_end null so that the browser
@@ -979,6 +1356,8 @@ function update_status_handle(data) {
 						}
 					});
 				}
+
+				update_bandwidth_graph();
 				return;
 			}
 		}
@@ -1004,10 +1383,11 @@ function update_status() {
 			data : {
 				'action' : 'update_status'
 			},
-			success : update_status_handle,
+			success : update_status_handler,
 			complete : function() {
 				concurrent_requests_num--;
-			}
+			},
+			error : update_status_fail_handler
 		});
 	}
 }
@@ -1029,7 +1409,9 @@ function initial_request_handle(data) {
 					.log("invalid value for number of bandwidth data\n"
 							+ tmpstr);
 		} else {
-			var upload, download, now;
+			var upload, download, now,
+					bandwidth_data = bandwidth_total_object.data,
+					bandwidth_first_index = 0, bandwidth_last_index = 0;
 			now = new Date().getTime();
 			while (num) {
 				var comma;
@@ -1066,42 +1448,62 @@ function initial_request_handle(data) {
 
 				num--;
 			}
+
+			bandwidth_total_object.first_index = bandwidth_first_index;
+			bandwidth_total_object.last_index = bandwidth_last_index;
+
+			update_bandwidth_graph();
 		}
 	}
 }
 
 function body_loaded() {
-	bandwidth_data = Array(bandwidth_data_size);
+	bandwidth_total_object = {
+		data : Array(bandwidth_data_size),
+		first_index : 0,
+		last_index : 0
+	};
+	bandwidth_shown_type_jquery = $(bandwidth_shown_type);
+	bandwidth_shown_object = bandwidth_total_object;
+	bandwidth_graph_path_container_jquery = $(bandwidth_graph_path_container);
 	messages_data = Array(messages_data_size);
-	stream_tbody = $("#streams_list");
-	circuit_tbody = $("#circuit_list");
-	orconn_tbody = $("#orconn_list");
-	or_tbody = $("#ORlist");
-	messages_tbody = $("#messages_table_tbody");
-	custom_command_console_jquery = $("#custom_command_console");
+	stream_tbody = $(streams_list);
+	circuit_tbody = $(circuit_list);
+	orconn_tbody = $(orconn_list);
+	or_tbody = $(ORlist);
+	messages_tbody = $(messages_table_tbody);
+	custom_command_console_jquery = $(custom_command_console);
 	bandwidth_graph_x_numbers = $('.bandwidth_graph_label_x_number');
 	bandwidth_graph_y_numbers = $('.bandwidth_graph_label_y_number');
-	update_bandwidth_graph();
 	tor_options_table_row = $('.tor_options_table_row');
 	tor_options_change_category(0);
 	tor_options_value = $('.tor_options_value');
 	tor_options_default = $('.tor_options_default_checkbox');
 	status_fields = $('#status_table td');
 	command_response_box_jquery = $("#command_response_box");
+	custom_command_hint_box_jquery = $(custom_command_hint_box);
 	$.post(php_tor_controller_url, {
 		'action' : 'get_bandwidth_history'
 	}, initial_request_handle).always(function() {
 		update_status();
-		setInterval(update_status, update_status_interval)
+		setInterval(update_status, update_status_interval);
 	});
 }
 
-function update_settings_button_handle() {
-	var a = 'resetconf';
+function update_settings_handler() {
+	var a = 'resetconf', value_lines, value_lines_num;
 	for (var c = 0; c < tor_options_number; c++) {
-		a += ' ' + tor_options_name[c];
-		if (!tor_options_default[c].checked)
-			a += '=\"' + tor_options_value[c].value + '\"';
+		if (!tor_options_default[c].checked) {
+			value_lines = tor_options_value[c].value.split('\n');
+			value_lines_num = value_lines.length;
+			if (value_lines_num) {
+				for (var b = 0; b < value_lines_num; b++)
+					a += ' ' + tor_options_name[c] + '=\"'
+							+ value_lines[b].replace('\"', '\\\"') + '\"';
+			} else
+				a += ' ' + tor_options_name[c] + '=\"\"';
+		} else
+			a += ' ' + tor_options_name[c];
 	}
 	custom_command_popup(a);
 }
@@ -1115,4 +1517,37 @@ function update_messages_display(severity, checked) {
 		messages_hide |= 1 << severity;
 		messages.hide();
 	}
+}
+
+function change_bandwidth_shown_type() {
+	serial = Number(bandwidth_shown_type.value);
+	if (serial)
+		bandwidth_shown_object = bandwidth_data_all_tree.find({
+			serial : serial
+		});
+	else
+		bandwidth_shown_object = bandwidth_total_object;
+
+	update_bandwidth_graph();
+}
+
+function change_bandwidth_graph_speed() {
+	var x_number;
+	bandwidth_graph_px_per_ms = Number(bandwidth_graph_px_per_s.value) / 1000;
+	x_number = 0.1 / bandwidth_graph_px_per_ms;
+	for (var b = 1; b < 6; b++)
+		bandwidth_graph_x_numbers[b].innerHTML = (b * x_number).toFixed(2);
+	if (bandwidth_select_object_to_remove) {
+		$(bandwidth_select_object_to_remove).remove();
+		bandwidth_select_object_to_remove = null;
+	}
+	update_bandwidth_graph();
+}
+
+function custom_command_console_clear() {
+	custom_command_console_jquery.empty();
+}
+
+function message_log_clear() {
+	messages_tbody.empty();
 }

@@ -1,7 +1,4 @@
 <?php
-// path to request this page by javascript
-define ( 'path_http', '' );
-
 // path to the config file
 define ( 'config_file_path', 'config.php' );
 
@@ -18,16 +15,14 @@ define ( 'bandwidth_data_size', 601 );
 // number of messages stored by the browser
 define ( 'messages_data_size', 65536 );
 
-define ( 'tc_connection_method_network', 1 );
-define ( 'tc_connection_method_unix_socket', 2 );
-define ( 'tc_connection_secure_none', 0 );
-define ( 'tc_connection_secure_ssl', 1 );
-define ( 'tc_connection_secure_tls', 2 );
+// length of clientnonce used for authchallenge
+define ( 'tc_connection_authchallenge_clientnonce_len', 32 );
+
 define ( 'tc_connection_auth_none', 0 );
 define ( 'tc_connection_auth_password', 1 );
 define ( 'tc_connection_auth_cookie', 2 );
+define ( 'tc_connection_auth_safecookie', 3 );
 define ( 'tc_max_response_chunk_length', 8192 );
-define ( 'tor_options_number', 296 );
 
 include config_file_path;
 $update_config = 0;
@@ -35,14 +30,10 @@ $error_message = '';
 $tor_options_name = array ();
 $tor_options_value = array ();
 $tor_options_type = array ();
-$tor_options_name_length = array ();
 $tor_options_name_reverse = array ();
 $tor_options_number = 0;
 $tor_options_default_value = array ();
 $tor_version_string = '';
-$event_names = array ();
-$info_names = array ();
-$signal_names = array ();
 
 // the functions to handle actions
 $action_functions = array (
@@ -52,7 +43,7 @@ $action_functions = array (
 		'get_bandwidth_history' => 'get_bandwidth_history_function'
 );
 
-/*
+/**
  * The descriptions are from tor (1) man page.
  * The authors are Roger Dingledine [arma at mit.edu],
  * Nick Mathewson [nickm at alum.mit.edu].
@@ -1133,7 +1124,136 @@ $tor_options_description = array (
 				one. You can disable this behavior, so that Tor will select "No
 				authentication" when IsolateSOCKSAuth is disabled, or when this
 				option is set.</p>',
+		'SocksPort' => '<p class="tor_option_description"><b>SOCKSPort</b> [<i>
+				address</i>:]<i>port</i>|<b>unix:</b><i>path</i>|<b>auto</b> [
+				<i>flags</i>] [<i>isolation flags</i>]</p><p
+				class="tor_option_description_indented">Open this port to
+				listen for connections from SOCKS−speaking applications. Set
+				this to 0 if you don’t want to allow application connections
+				via SOCKS. Set it to "auto" to have Tor pick a port for you.
+				This directive can be specified multiple times to bind to
+				multiple addresses/ports. (Default: 9050)</p><p
+				class="tor_option_description_indented">NOTE: Although this
+				option allows you to specify an IP address other than
+				localhost, you should do so only with extreme caution. The
+				SOCKS protocol is unencrypted and (as we use it)
+				unauthenticated, so exposing it in this way could leak your
+				information to anybody watching your network, and allow anybody
+				to use your computer as an open proxy.</p><p
+				class="tor_option_description_indented">The <i>isolation flags
+				</i> arguments give Tor rules for which streams received on
+				this SOCKSPort are allowed to share circuits with one another.
+				Recognized isolation flags are:</p><p
+				class="tor_option_description_indented"><b>IsolateClientAddr</b>
+				</p><p class="tor_option_description_indented2">Don’t share
+				circuits with streams from a different client address. (On by
+				default and strongly recommended; you can disable it with <b>
+				NoIsolateClientAddr</b>.)</p><p
+				class="tor_option_description_indented"><b>IsolateSOCKSAuth</b>
+				</p><p class="tor_option_description_indented2">Don’t share
+				circuits with streams for which different SOCKS authentication
+				was provided. (On by default; you can disable it with <b>
+				NoIsolateSOCKSAuth</b>.)</p><p
+				class="tor_option_description_indented"><b>
+				IsolateClientProtocol</b></p><p
+				class="tor_option_description_indented2">Don’t share circuits
+				with streams using a different protocol. (SOCKS 4, SOCKS 5,
+				TransPort connections, NATDPort connections, and DNSPort
+				requests are all considered to be different protocols.)</p><p
+				class="tor_option_description_indented"><b>IsolateDestPort</b>
+				</p><p class="tor_option_description_indented2">Don’t share
+				circuits with streams targeting a different destination port.
+				</p><p class="tor_option_description_indented"><b>
+				IsolateDestAddr</b></p><p
+				class="tor_option_description_indented2">Don’t share circuits
+				with streams targeting a different destination address.</p><p
+				class="tor_option_description_indented"><b>
+				KeepAliveIsolateSOCKSAuth</b></p><p
+				class="tor_option_description_indented2">If <b>IsolateSOCKSAuth
+				</b> is enabled, keep alive circuits that have streams with
+				SOCKS authentication set indefinitely.</p><p
+				class="tor_option_description_indented"><b>SessionGroup=</b><i>
+				INT</i></p><p class="tor_option_description_indented2">If no
+				other isolation rules would prevent it, allow streams on this
+				port to share circuits with streams from every other port with
+				the same session group. (By default, streams received on
+				different SOCKSPorts, TransPorts, etc are always isolated from
+				one another. This option overrides that behavior.)</p><p
+				class="tor_option_description_indented">Other recognized <i>
+				flags</i> for a SOCKSPort are:</p><p
+				class="tor_option_description_indented"><b>NoIPv4Traffic</b></p>
+				<p class="tor_option_description_indented2">Tell exits to not
+				connect to IPv4 addresses in response to SOCKS requests on this
+				connection.</p><p class="tor_option_description_indented"><b>
+				IPv6Traffic</b></p><p class="tor_option_description_indented2">
+				Tell exits to allow IPv6 addresses in response to SOCKS
+				requests on this connection, so long as SOCKS5 is in use.
+				(SOCKS4 can’t handle IPv6.)</p><p
+				class="tor_option_description_indented"><b>PreferIPv6</b></p><p
+				class="tor_option_description_indented2">Tells exits that, if a
+				host has both an IPv4 and an IPv6 address, we would prefer to
+				connect to it via IPv6. (IPv4 is the default.)</p><p
+				class="tor_option_description_indented"><b>CacheIPv4DNS</b></p>
+				<p class="tor_option_description_indented2">Tells the client to
+				remember IPv4 DNS answers we receive from exit nodes via this
+				connection. (On by default.)</p><p
+				class="tor_option_description_indented"><b>CacheIPv6DNS</b></p>
+				<p class="tor_option_description_indented2">Tells the client to
+				remember IPv6 DNS answers we receive from exit nodes via this
+				connection.</p><p class="tor_option_description_indented"><b>
+				GroupWritable</b></p><p
+				class="tor_option_description_indented2">Unix domain sockets
+				only: makes the socket get created as group−writable.</p><p
+				class="tor_option_description_indented"><b>WorldWritable</b></p>
+				<p class="tor_option_description_indented2">Unix domain sockets
+				only: makes the socket get created as world−writable.</p><p
+				class="tor_option_description_indented"><b>CacheDNS</b></p><p
+				class="tor_option_description_indented2">Tells the client to
+				remember all DNS answers we receive from exit nodes via this
+				connection.</p><p class="tor_option_description_indented"><b>
+				UseIPv4Cache</b></p><p class="tor_option_description_indented2">
+				Tells the client to use any cached IPv4 DNS answers we have
+				when making requests via this connection. (NOTE: This option,
+				along UseIPv6Cache and UseDNSCache, can harm your anonymity,
+				and probably won’t help performance as much as you might
+				expect. Use with care!)</p><p
+				class="tor_option_description_indented"><b>UseIPv6Cache</b></p>
+				<p class="tor_option_description_indented2">Tells the client to
+				use any cached IPv6 DNS answers we have when making requests
+				via this connection.</p><p
+				class="tor_option_description_indented"><b>UseDNSCache</b></p>
+				<p class="tor_option_description_indented2">Tells the client to
+				use any cached DNS answers we have when making requests via
+				this connection.</p><p class="tor_option_description_indented">
+				<b>PreferIPv6Automap</b></p><p
+				class="tor_option_description_indented2">When serving a
+				hostname lookup request on this port that should get automapped
+				(according to AutomapHostsOnResolve), if we could return either
+				an IPv4 or an IPv6 answer, prefer an IPv6 answer. (On by
+				default.)</p><p class="tor_option_description_indented"><b>
+				PreferSOCKSNoAuth</b></p><p
+				class="tor_option_description_indented2">Ordinarily, when an
+				application offers both "username/password authentication" and
+				"no authentication" to Tor via SOCKS5, Tor selects
+				username/password authentication so that IsolateSOCKSAuth can
+				work. This can confuse some applications, if they offer a
+				username/password combination then get confused when asked for
+				one. You can disable this behavior, so that Tor will select "No
+				authentication" when IsolateSOCKSAuth is disabled, or when this
+				option is set.</p>',
 		'SOCKSListenAddress' => '<p class="tor_option_description"><b>
+				SOCKSListenAddress</b> <i>IP</i>[:<i>PORT</i>]</p><p
+				class="tor_option_description_indented">Bind to this address to
+				listen for connections from Socks−speaking applications.
+				(Default: 127.0.0.1) You can also specify a port (e.g.
+				192.168.0.1:9100). This directive can be specified multiple
+				times to bind to multiple addresses/ports. (DEPRECATED: As of
+				0.2.3.x−alpha, you can now use multiple SOCKSPort entries,
+				and provide addresses for SOCKSPort entries, so
+				SOCKSListenAddress no longer has a purpose. For backward
+				compatibility, SOCKSListenAddress is only allowed when
+				SOCKSPort is just a port number.)</p>',
+		'SocksListenAddress' => '<p class="tor_option_description"><b>
 				SOCKSListenAddress</b> <i>IP</i>[:<i>PORT</i>]</p><p
 				class="tor_option_description_indented">Bind to this address to
 				listen for connections from Socks−speaking applications.
@@ -2722,33 +2842,33 @@ $tor_options_description = array (
 				TestingMinExitFlagThreshold</b> <i>N</i> <b>KBytes</b>|<b>
 				MBytes</b>|<b>GBytes</b>|<b>KBits</b>|<b>MBits</b>|<b>GBits</b>
 				</p><p class="tor_option_description_indented">Sets a
-lower−bound for assigning an exit flag when running as an
-authority on a testing network. Overrides the usual default
-lower bound of 4 KB. (Default: 0)</p>',
+				lower−bound for assigning an exit flag when running as an
+				authority on a testing network. Overrides the usual default
+				lower bound of 4 KB. (Default: 0)</p>',
 		'TestingLinkCertifetime' => '<p class="tor_option_description"><b>
-TestingLinkCertifetime</b> <i>N</i> <b>seconds</b>|<b>minutes
-</b>|<b>hours</b>|<b>days</b>|<b>weeks</b>|<b>months</b></p><p
-class="tor_option_description_indented">Overrides the default
-lifetime for the certificates used to authenticate our X509
-link cert with our ed25519 signing key. (Default: 2 days)</p>',
+				TestingLinkCertifetime</b> <i>N</i> <b>seconds</b>|<b>minutes
+				</b>|<b>hours</b>|<b>days</b>|<b>weeks</b>|<b>months</b></p><p
+				class="tor_option_description_indented">Overrides the default
+				lifetime for the certificates used to authenticate our X509
+				link cert with our ed25519 signing key. (Default: 2 days)</p>',
 		'TestingAuthKeyLifetime' => '<p class="tor_option_description"><b>
-TestingAuthKeyLifetime</b> <i>N</i> <b>seconds</b>|<b>minutes
-</b>|<b>hours</b>|<b>days</b>|<b>weeks</b>|<b>months</b></p><p
-class="tor_option_description_indented">Overrides the default
-lifetime for a signing Ed25519 TLS Link authentication key.
-(Default: 2 days)</p>',
+				TestingAuthKeyLifetime</b> <i>N</i> <b>seconds</b>|<b>minutes
+				</b>|<b>hours</b>|<b>days</b>|<b>weeks</b>|<b>months</b></p><p
+				class="tor_option_description_indented">Overrides the default
+				lifetime for a signing Ed25519 TLS Link authentication key.
+				(Default: 2 days)</p>',
 		'TestingLinkKeySlop' => '<p class="tor_option_description"><b>
-TestingLinkKeySlop</b> <i>N</i> <b>seconds</b>|<b>minutes</b>|
-<b>hours</b>, <b>TestingAuthKeySlop</b> <i>N</i> <b>seconds</b>
-|<b>minutes</b>|<b>hours</b>, <b>TestingSigningKeySlop</b> <i>N
-</i> <b>seconds</b>|<b>minutes</b>|<b>hours</b></p><p
-class="tor_option_description_indented">How early before the
-official expiration of a an Ed25519 signing key do we replace
-it and issue a new key? (Default: 3 hours for link and auth; 1
-day for signing.)</p>'
+				TestingLinkKeySlop</b> <i>N</i> <b>seconds</b>|<b>minutes</b>|
+				<b>hours</b>, <b>TestingAuthKeySlop</b> <i>N</i> <b>seconds</b>
+				|<b>minutes</b>|<b>hours</b>, <b>TestingSigningKeySlop</b> <i>N
+				</i> <b>seconds</b>|<b>minutes</b>|<b>hours</b></p><p
+				class="tor_option_description_indented">How early before the
+				official expiration of a an Ed25519 signing key do we replace
+				it and issue a new key? (Default: 3 hours for link and auth; 1
+				day for signing.)</p>'
 );
 
-/*
+/**
  * The descriptions are from tor (1) man page.
  * The authors are Roger Dingledine [arma at mit.edu],
  * Nick Mathewson [nickm at alum.mit.edu].
@@ -2860,7 +2980,9 @@ $tor_options_categories = array (
 				'NodeFamily',
 				'EnforceDistinctSubnets',
 				'SOCKSPort',
+				'SocksPort',
 				'SOCKSListenAddress',
+				'SocksListenAddress',
 				'SocksPolicy',
 				'SocksTimeout',
 				'TokenBucketRefillInterval',
@@ -3078,68 +3200,97 @@ class event_cache_type {
 	}
 }
 
-/*
- * This function gets response from tor control.
- * It returns the response on success or null on failure.
+/**
+ * This function reads response from tor control port. The response will be
+ * valid according to tor control spec. On success, an array containing lines
+ * of the response will be returned. On failure, null will be returned.
  */
-function get_response() {
+function get_response_lines() {
 	global $tc;
-
-	if (($response = fread ( $tc, tc_max_response_chunk_length )) === false)
+	$response_lines = array ();
+	$index = 0;
+	$state = 0;
+	if (($response_chunk = fread ( $tc, tc_max_response_chunk_length )) === null)
 		return null;
-	if ($response === '')
-		return $response;
-	while ( substr ( $response, - 2 ) !== "\r\n" ) {
-		do {
-			$response_new_chunk = fread ( $tc, tc_max_response_chunk_length );
-			if ($response_new_chunk === false)
+	if ($response_chunk === '')
+		return $response_lines;
+	while ( 1 ) {
+		while ( substr ( $response_chunk, - 2 ) !== "\r\n" ) {
+			if (($response_chunk_1 = fread ( $tc, tc_max_response_chunk_length
+					)) === null)
 				return null;
-		} while ( $response_new_chunk === '' );
-		$response .= $response_new_chunk;
-	}
-	if ($response [3] === ' ')
-		return $response;
-	else {
-		$code_space = substr ( $response, 0, 3 ) . ' ';
-		$pos_new_line = 0;
-		while ( 1 ) {
-			while ( ($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false ) {
-				$pos_new_line = $tmp + 2;
-				$pre = substr ( $response, $pos_new_line, 4 );
-				if ($pre == $code_space) {
-					// to make sure the next line is empty
-					if (($tmp = strpos ( $response, "\r\n", $pos_new_line )) !== false) {
-						$pos_new_line = $tmp + 2;
-						if ($pos_new_line == strlen ( $response ))
-							return $response;
-					}
+			$response_chunk .= $response_chunk_1;
+		}
+		$response_chunk_lines
+				= explode ( "\r\n", substr ( $response_chunk, 0, - 2 ) );
+
+		foreach ( $response_chunk_lines as $line )
+			$response_lines [] = $line;
+		$response_chunk = '';
+
+		switch ($state) {
+			case 0 : // not started
+			case0:
+				if (! isset ( $response_lines [$index] ))
+					return $response_lines;
+				$line = $response_lines [$index ++];
+				if (! isset ( $line [3] )) // If tor control port is behaving as
+						// expected, this shouldn't occur.
+					goto case0;
+				if ($line [3] === ' ')
+					goto case0;
+				$error_code_space = substr ( $line, 0, 3 ) . ' ';
+				if ($line [3] === '+') {
+					$state = 1;
+					goto case1;
 				}
-			}
-			do {
-				$response_new_chunk = fread ( $tc, tc_max_response_chunk_length );
-				if ($response_new_chunk === false)
-					return null;
-			} while ( $response_new_chunk === '' );
-			$response .= $response_new_chunk;
+				$state = 2;
+				goto case2;
+
+			case 1 : // waiting for a line of "."
+			case1:
+				if (! isset ( $response_lines [$index] ))
+					break;
+				$line = $response_lines [$index ++];
+				if ($line === '.') {
+					$state = 3;
+					goto case3;
+				}
+				goto case1;
+
+			case 2 : // waiting for a line of <error code>" "
+			case2:
+				if (! isset ( $response_lines [$index] ))
+					break;
+				$line = $response_lines [$index ++];
+				if (substr ( $line, 0, 4 ) === $error_code_space) {
+					$state = 0;
+					goto case0;
+				}
+				goto case2;
+
+			case 3 : // waiting for a line of <error code>" "
+			case3:
+				if (! isset ( $response_lines [$index] ))
+					break;
+				$line = $response_lines [$index ++];
+				if (substr ( $line, 0, 4 ) === $error_code_space) {
+					$state = 0;
+					goto case0;
+				}
+				$state = 1;
+				goto case1;
 		}
 	}
 }
 
-function exec_command($command) {
-	global $tc;
-	fwrite ( $tc, "$command\r\n" );
-	return get_response ();
-}
-
-function response_to_lines($response) {
-	return explode ( "\r\n", $response );
-}
-
 function exec_command_lines($command) {
-	return response_to_lines ( exec_command ( $command ) );
+	global $tc;
+	fwrite($tc,"$command\r\n");
+	return get_response_lines();
 }
 
-/*
+/**
  * This function parses the response for getinfo.
  */
 function parse_getinfo($name) {
@@ -3167,7 +3318,7 @@ function parse_getinfo($name) {
 	return new getinfo_value ( $getinfo_current_lines, $getinfo_current_value );
 }
 
-/*
+/**
  * This function parses the response for getinfo.
  * It returns an array. Each item is of getinfo_value type.
  */
@@ -3206,33 +3357,27 @@ function parse_getinfo_array($names) {
 
 function close_tc() {
 	global $tc;
-	exec_command ( 'quit' );
+	exec_command_lines ( 'quit' );
 }
 
 function is_invalid_var($var, $min, $max) {
 	return (! isset ( $var ))
+			|| ! is_int ( $var )
 			|| (filter_var ( $var, FILTER_VALIDATE_INT ) === false)
 			|| ($var < $min)
 			|| ($var > $max);
 }
 
 function update_config() {
-	global $error_message, $require_login, $tc_connection_method,
-			$tc_connection_hostname, $tc_connection_auth;
+	global $error_message, $require_login, $tc_connection_url,
+			$tc_connection_auth;
 	$config_contents = '<?php $require_login=' . $require_login
-			. ';$tc_connection_method=' . $tc_connection_method
-			. ';$tc_connection_hostname='
-			. var_export ( $tc_connection_hostname, 1 )
+			. ';$tc_connection_url=' . var_export( $tc_connection_url, 1 )
 			. ';$tc_connection_auth=' . $tc_connection_auth;
 	if ($tc_connection_auth) {
 		global $tc_connection_password;
 		$config_contents .= ';$tc_connection_password='
 				. var_export ( $tc_connection_password, 1 );
-	}
-	if ($tc_connection_method == tc_connection_method_network) {
-		global $tc_connection_secure, $tc_connection_port;
-		$config_contents .= ';$tc_connection_secure=' . $tc_connection_secure
-		. ';$tc_connection_port=' . $tc_connection_port;
 	}
 	if ($require_login) {
 		global $login_password_hash;
@@ -3243,7 +3388,7 @@ function update_config() {
 		$error_message .= '<p>Error writing to config file</p>';
 }
 
-/*
+/**
  * This function compares the current version of tor with the version required.
  * It returns 1 if the current version is higher or equal to the version
  * required. It returns 0 otherwise.
@@ -3262,20 +3407,20 @@ function compare_version($v) {
 	return 1;
 }
 
-/*
+/**
  * This function outputs the following based on $parse_dir_data.
- * nickname
- * identity
- * digest
- * publication
- * ip
- * ORPort
- * DIRPort
- * IPv6 addresses, each ending with ";"
- * flags
- * bandwidth
- * portlist
- * version
+ * 	nickname
+ * 	identity
+ * 	digest
+ * 	publication
+ * 	ip
+ * 	ORPort
+ * 	DIRPort
+ * 	IPv6 addresses, each ending with ";"
+ * 	flags
+ * 	bandwidth
+ * 	portlist
+ * 	version
  * Seperators are "\t".
  */
 function output_parse_dir() {
@@ -3289,20 +3434,20 @@ function output_parse_dir() {
 	return $result;
 }
 
-/*
+/**
  * This function parses v3 style router status entry into the following:
- * nickname
- * identity
- * digest
- * publication
- * ip
- * ORPort
- * DIRPort
- * IPv6 addresses, each ending with ";"
- * flags
- * bandwidth
- * portlist
- * version
+ * 	nickname
+ * 	identity
+ * 	digest
+ * 	publication
+ * 	ip
+ * 	ORPort
+ * 	DIRPort
+ * 	IPv6 addresses, each ending with ";"
+ * 	flags
+ * 	bandwidth
+ * 	portlist
+ * 	version
  * Seperators are "\t".
  * It returns a string containing these lines when encountering the next router
  * status entry.
@@ -3367,20 +3512,20 @@ function parse_dir($line) {
 	return null;
 }
 
-/*
+/**
  * This function parses v1 style router status entry into the following:
- * nickname
- * identity
- * digest
- * publication
- * ip
- * ORPort
- * DIRPort
- * IPv6 addresses, each ending with ";"
- * flags
- * bandwidth
- * portlist
- * version
+ * 	nickname
+ * 	identity
+ * 	digest
+ * 	publication
+ * 	ip
+ * 	ORPort
+ * 	DIRPort
+ * 	IPv6 addresses, each ending with ";"
+ * 	flags
+ * 	bandwidth
+ * 	portlist
+ * 	version
  * Seperators are "\t".
  * It returns a string containing these lines when encountering the next router
  * status entry.
@@ -3434,21 +3579,21 @@ function parse_dir_v1($line) {
 	return null;
 }
 
-/*
+/**
  * This function parses 1 line of response of "getinfo status/circuit-status".
  * It outputs 1 line of the following:
- * id
- * status
- * build flag
- * purpose
- * time created
- * path
- * HS state
- * HS address
- * reason
- * remote reason
- * socks username
- * socks password
+ * 	id
+ * 	status
+ * 	build flag
+ * 	purpose
+ * 	time created
+ * 	path
+ * 	HS state
+ * 	HS address
+ * 	reason
+ * 	remote reason
+ * 	socks username
+ * 	socks password
  * Seperators are " ".
  */
 function output_circuit_status($line) {
@@ -3490,10 +3635,14 @@ function output_circuit_status($line) {
 }
 
 function custom_command_function() {
+	/**
+	 * The output is lines of response seperated by "\n".
+	 */
 	header ( 'Content-type: text/plain' );
 
 	if (isset ( $_POST ['custom_command_command'] )) {
-		echo exec_command ( $_POST ['custom_command_command'] );
+		implode ( "\n",
+				exec_command_lines ( $_POST ['custom_command_command'] ) );
 	}
 
 	close_tc ();
@@ -3501,7 +3650,7 @@ function custom_command_function() {
 }
 
 function update_status_function() {
-	/*
+	/**
 	 * data will be empty if something fails on the server side.
 	 *
 	 * The first 8 lines are the following status of tor:
@@ -3639,7 +3788,7 @@ function update_status_function() {
 	}
 
 	// for asynchronous events
-	$response = exec_command ( "setevents $event_names_string" );
+	$response_lines = exec_command_lines ( "setevents $event_names_string" );
 	$now = ( int ) (microtime ( 1 ) * 1000);
 
 	// $time_check is the time to check for another instance of this script
@@ -3669,13 +3818,12 @@ function update_status_function() {
 		$event_cache = array ();
 
 		while ( $now < $time_check ) {
-			if ($response !== '') {
-				foreach ( response_to_lines ( $response ) as $line ) {
-					if (substr ( $line, 0, 3 ) === '650')
-						$event_cache [] = new event_cache_type ( $now, substr ( $line, 3 ) );
-				}
+			foreach ( $response_lines as $line ) {
+				if (substr ( $line, 0, 3 ) === '650')
+					$event_cache [] = new event_cache_type ( $now,
+							substr ( $line, 3 ) );
 			}
-			$response = get_response ();
+			$response_lines = get_response_lines();
 			$now = ( int ) (microtime ( 1 ) * 1000);
 		}
 
@@ -3706,7 +3854,7 @@ function update_status_function() {
 	}
 }
 
-/*
+/**
  * This function is used when tor's getinfo ip-to-country/ doesn't give the
  * location of an ip address.
  * Geoip data is retrived from the following sources. The first available is
@@ -3716,14 +3864,14 @@ function update_status_function() {
  * When none of the above is available, null is returned.
  */
 function geoip_alt($ip) {
-	/*
+	/**
 	 * geoiplookup_command_available indicates whether the geoiplookup command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
 	 */
 	static $geoiplookup_command_available = 0;
 
-	/*
+	/**
 	 * geoiplookup6_command_available indicates whether the geoiplookup6 command
 	 * is available. 0 means not determined. 1 means available. 2 means not
 	 * available.
@@ -3764,7 +3912,7 @@ function geoip_alt($ip) {
 }
 
 function geoip_function() {
-	/*
+	/**
 	 * $_POST['ip_addr'] should be IP addresses seperated by "-".
 	 * The respnse for each IP address is a 2-letter country code.
 	 * There are no seperators.
@@ -3829,7 +3977,7 @@ function geoip_function() {
 }
 
 function get_bandwidth_history_function() {
-	/*
+	/**
 	 * The first line of response is a number in decimal n.
 	 * The next n lines are 2 decimal numbers seperated by ",".
 	 * The first is download rate. The second is upload rate.
@@ -3918,24 +4066,7 @@ switch ($action) {
 		break;
 	case 'change_connection_method' :
 		$action = '';
-		if ($_POST ['connection_method'] == 'unix_socket') {
-			$tc_connection_method = tc_connection_method_unix_socket;
-			$tc_connection_hostname = $_POST ['connection_unix_socket_path'];
-		} else {
-			$tc_connection_method = tc_connection_method_network;
-			$tc_connection_hostname = $_POST ['connection_tcp_hostname'];
-			$tc_connection_port = $_POST ['connection_tcp_port'];
-			switch ($_POST ['connection_tcp_secure']) {
-				case 'ssl' :
-					$tc_connection_secure = tc_connection_secure_ssl;
-					break;
-				case 'tls' :
-					$tc_connection_secure = tc_connection_secure_tls;
-					break;
-				default :
-					$tc_connection_secure = tc_connection_secure_none;
-			}
-		}
+		$tc_connection_url = $_POST ['connection_url'];
 		switch ($_POST ['connection_auth_method']) {
 			case 'password' :
 				$tc_connection_auth = tc_connection_auth_password;
@@ -3944,6 +4075,11 @@ switch ($action) {
 				break;
 			case 'cookie' :
 				$tc_connection_auth = tc_connection_auth_cookie;
+				$tc_connection_password
+						= $_POST ['connection_auth_method_cookie_path'];
+				break;
+			case 'safecookie' :
+				$tc_connection_auth = tc_connection_auth_safecookie;
 				$tc_connection_password
 						= $_POST ['connection_auth_method_cookie_path'];
 				break;
@@ -3977,28 +4113,11 @@ switch ($action) {
 // to prevent other requests from being delayed executing
 session_write_close ();
 
-if (is_invalid_var ( $tc_connection_method, 1, 2 )) {
-	$tc_connection_method = tc_connection_method_network;
+if (! isset ( $tc_connection_url )) {
+	$tc_connection_url = "tcp://localhost:9051";
 	$update_config = 1;
 }
-if (! isset ( $tc_connection_hostname )) {
-	if ($tc_connection_method == $tc_connection_method_unix_socket)
-		$tc_connection_hostname = '/var/run/tor.sock';
-	else
-		$tc_connection_hostname = 'localhost';
-	$update_config = 1;
-}
-if ($tc_connection_method == tc_connection_method_network) {
-	if (is_invalid_var ( $tc_connection_port, 1, 65535 )) {
-		$tc_connection_port = 9051;
-		$update_config = 1;
-	}
-	if (is_invalid_var ( $tc_connection_secure, 0, 2 )) {
-		$tc_connection_secure = tc_connection_secure_none;
-		$update_config = 1;
-	}
-}
-if (is_invalid_var ( $tc_connection_auth, 0, 2 )) {
+if (is_invalid_var ( $tc_connection_auth, 0, 3 )) {
 	$tc_connection_auth = tc_connection_auth_none;
 	$update_config = 1;
 }
@@ -4010,24 +4129,7 @@ if ($tc_connection_auth && ! isset ( $tc_connection_password )) {
 if ($update_config)
 	update_config ();
 
-if ($tc_connection_method == tc_connection_method_network) {
-	if (strstr ( $tc_connection_hostname, ':' ))
-		$tc_connection_hostname = "[$tc_connection_hostname]";
-	switch ($tc_connection_secure) {
-		case tc_connection_secure_ssl :
-			$tc_url = "ssl://$tc_connection_hostname:$tc_connection_port";
-			break;
-		case tc_connection_secure_tls :
-			$tc_url = "tls://$tc_connection_hostname:$tc_connection_port";
-			break;
-		default :
-			$tc_url = "tcp://$tc_connection_hostname:$tc_connection_port";
-	}
-} else {
-	$tc_url = "unix://$tc_connection_hostname";
-}
-
-$tc = @stream_socket_client ( $tc_url, $errno, $errstr );
+$tc = @stream_socket_client ( $tc_connection_url, $errno, $errstr );
 
 if ($tc) {
 	$auth_success = 1;
@@ -4037,21 +4139,107 @@ if ($tc) {
 					. '"';
 			break;
 		case tc_connection_auth_cookie :
+		case tc_connection_auth_safecookie:
 			if (file_exists ( $tc_connection_password )) {
 				if (($tc_connection_auth_cookie_file
-						= fopen ( $tc_connection_password, "rb" )) === false) {
+						= @fopen ( $tc_connection_password, "rb" )) === false) {
 					$error_message .= '<p>Error opening cookie file</p>';
 					$auth_success = 0;
 				} else {
-					if (($tc_connection_auth_cookie_contents
+					$tc_connection_auth_cookie_contents
 							= stream_get_contents
-							( $tc_connection_auth_cookie_file )) === false) {
+							( $tc_connection_authc_cookie_file );
+					fclose ( $tc_connection_auth_cookie_file );
+					if (($tc_connection_auth_cookie_contents === false)
+							|| (strlen ( $tc_connection_auth_cookie_contents )
+									!= 32)) {
 						$error_message .= '<p>Error reading cookie file</p>';
 						$auth_success = 0;
-					} else
-						$command = "authenticate " . bin2hex
-								( $tc_connection_auth_cookie_contents );
-					fclose ( $tc_connection_auth_cookie_file );
+					} else {
+						if ($tc_connection_auth
+								== tc_connection_auth_safecookie) {
+							/**
+							 * The following methods are used to get a random
+							 * string. The first available is used.
+							 * php's random_bytes function
+							 * php's openssl_random_pseudo_bytes
+							 * /dev/urandom
+							 * CAPICON.Utilities.1 form COM class
+							 */
+							if (function_exists ( 'random_bytes' )) {
+								$clientnonce = random_bytes (
+									tc_connection_authchallenge_clientnonce_len
+										);
+								goto tc_connection_clientnonce_complete;
+							}
+							if (function_exists (
+									'openssl_random_pseudo_bytes' )) {
+								$clientnonce = openssl_random_pseudo_bytes (
+									tc_connection_authchallenge_clientnonce_len,
+										$strong );
+								if ($strong)
+									goto tc_connection_clientnonce_complete;
+							}
+							if ($random_source = @fopen ( '/dev/urandom', 'rb' )
+									) {
+								$clientnonce = @fread ( $random_source,
+									tc_connection_authchallenge_clientnonce_len
+										);
+								@fclose ( $random_source );
+								if (strlen ( $tc_connection_clientnonce )
+										==
+									tc_connection_authchallenge_clientnonce_len)
+									goto tc_connection_clientnonce_complete;
+							}
+							if (@class_exists ( 'COM' )) {
+								if ($CAPI_Util = @new COM (
+										'CAPICOM.Utilities.1' )) {
+									$clientnonce = base64_decode (
+											$CAPI_Util->GetRandom ( 16, 0 ) );
+									goto tc_connection_clientnonce_complete;
+								}
+							}
+
+							// If none of the above is available, an error is
+							// given.
+							$auth_success = 0;
+							$error_message =
+									'<p>No available random source found</p>';
+							goto tc_connection_authchallenge_complete;
+
+							tc_connection_clientnonce_complete:
+							$response = exec_command (
+									'authchallenge safecookie '
+									. bin2hex ( $random_string ) );
+							if (substr ( $response, 0, 29 )
+									=== '250 AUTHCHALLENGE SERVERHASH=') {
+								$serverhash = hex2bin ( substr ( $response, 29,
+										64 ) );
+								$servernonce = hex2bin ( substr ( $response,
+										106, 64 ) );
+								$tohash = $tc_connection_auth_cookie_contents .
+										$clientnonce . $servernonce;
+								$serverhash1 = hash_hmac ( 'sha256', $tohash,
+					"Tor safe cookie authentication server-to-controller hash",
+										1 );
+								if ($serverhash == $serverhash1) {
+									$clienthash_hex = hash_hmac ( 'sha256',
+											$tohash,
+					"Tor safe cookie authentication controller-to-server hash"
+											);
+									$command = 'authenticate '
+											. $clienthash_hex;
+									goto tc_connection_authchallenge_complete;
+								}
+							}
+							$auth_success = 0;
+							$error_message = '<p>Authchallenge failed</p>';
+							tc_connection_authchallenge_complete:
+						} else {
+							$command = "authenticate " . bin2hex (
+									$tc_connection_auth_cookie_contents );
+						}
+					}
 				}
 			} else {
 				$error_message .=
@@ -4063,7 +4251,8 @@ if ($tc) {
 			$command = 'authenticate';
 	}
 	if ($auth_success) {
-		if (($response = exec_command ( $command )) == "250 OK\r\n") {
+		if (($response_lines = exec_command_lines ( $command )) [0] == "250 OK")
+		{
 			// to get the current version and event names
 			$getinfo_values = parse_getinfo_array ( array (
 					'version',
@@ -4072,7 +4261,7 @@ if ($tc) {
 
 			$tor_version_string = $getinfo_values [0]->lines [0];
 
-			if (preg_match ( '/\A[\d\.]+\d/', $tor_version_string,
+			if (preg_match ( '/[\d\.]*\d/', $tor_version_string,
 					$tor_version_string_number )) {
 				$tor_version = explode ( '.', $tor_version_string_number [0] );
 				for($a = 0; $a < 4; $a ++)
@@ -4105,7 +4294,6 @@ if ($tc) {
 				if ($line [0] == '.')
 					break;
 				$b = strpos ( $line, ' ' );
-				$tor_options_name_length [] = $b;
 				$name = substr ( $line, 0, $b );
 				$tor_options_name [] = $name;
 				$tor_options_name_reverse [$name] = $tor_options_number;
@@ -4121,16 +4309,28 @@ if ($tc) {
 			// to get values of the options
 			$response_lines = exec_command_lines ( "getconf "
 					. implode ( ' ', $tor_options_name ) );
-			for($a = 0; $a < $tor_options_number; $a ++) {
-				// each line is 250+<option name>, so we have
-				// $tor_options_name_length+4
-				$b = substr ( $response_lines [$a],
-						$tor_options_name_length [$a] + 4 );
-				if ($b)
-					$tor_options_value [$a] = substr ( $b, 1 );
-					// false means default
-				else
-					$tor_options_value [$a] = false;
+			foreach ( $response_lines as $line ) {
+				if ($line === '')
+					break;
+				$line = substr ( $line, 4 );
+				$a = strpos ( $line, '=' );
+				if ($a) {
+					$name = substr ( $line, 0, $a );
+					$value = substr ( $line, $a + 1 );
+					if (isset ( $tor_options_name_reverse [$name] )) {
+						$index = $tor_options_name_reverse [$name];
+						if (isset ( $tor_options_value [$index] ))
+							$tor_options_value [$index] .= "\r\n$value";
+						else
+							$tor_options_value [$index] = $value;
+					}
+				} else {
+					$name = $line;
+					if (isset ( $tor_options_name_reverse [$name] )) {
+						$index = $tor_options_name_reverse [$name];
+						$tor_options_value [$index] = null;
+					}
+				}
 			}
 
 			// to get default values of the options
@@ -4173,9 +4373,7 @@ if ($tc) {
 			$error_message .= "<p>
 						Authentication failed
 					</p>
-					<p>
-						$response
-					</p>
+					<p>" . implode ( "<br>", $response ) . "</p>
 					<p>
 						<a href=\"#connecting_to_tor\">
 							go to settings for connecting to tor
@@ -4187,7 +4385,7 @@ if ($tc) {
 	}
 } else {
 	if ($action !== '')
-		exit;
+		exit ();
 	$error_message .= "<p>
 				Failed to connect to tor.
 			</p>
@@ -4204,26 +4402,17 @@ if ($tc) {
 			</p>";
 }
 
-// to set the variables for the "Connecting to Tor" section
-if ($tc_connection_method == tc_connection_method_network) {
-	$connection_tcp_hostname = $tc_connection_hostname;
-	$connection_tcp_port = $tc_connection_port;
-	$connection_tcp_secure = $tc_connection_secure;
-	$connection_unix_socket_path = '/var/run/tor.sock';
-} else {
-	$connection_tcp_hostname = 'localhost';
-	$connection_tcp_port = 9051;
-	$connection_tcp_secure = tc_connection_secure_none;
-	$connection_unix_socket_path = $tc_connection_hostname;
-}
+// to set the variables for the "connecting to tor" section
 switch ($tc_connection_auth) {
 	case tc_connection_auth_none :
 		$connection_auth_password = '';
-		$connection_auth_cookie = '/etc/tor/control_auth_cookie';
+		$connection_auth_cookie = '/var/lib/tor/control_auth_cookie';
+		$connection_authchallenge = 1;
 		break;
 	case tc_connection_auth_password :
 		$connection_auth_password = $tc_connection_password;
-		$connection_auth_cookie = '/etc/tor/control_auth_cookie';
+		$connection_auth_cookie = '/var/lib/tor/control_auth_cookie';
+		$connection_authchallenge = 1;
 		break;
 	default :
 		$connection_auth_password = '';
@@ -4240,9 +4429,9 @@ switch ($tc_connection_auth) {
 	<script src="src/jquery.min.js"></script>
 	<script src="src/js_bintrees/treebase.js"></script>
 	<script src="src/js_bintrees/rbtree.js"></script>
+	<script src="src/textarea-caret-position.js"></script>
 	<script src="src/script.js"></script>
 	<script>
-php_tor_controller_url = '<?=path_http?>';
 tor_options_categories = [
 <?php
 foreach ( $tor_options_categories as $category ) {
@@ -4499,12 +4688,12 @@ messages_data_size=<?=messages_data_size?>;
 			Only bandwidth_data_size seconds of bandwidth information is stored.
 		-->
 
-		<input type="number" value="10" step="1" min="1"
-			onchange="a=this.value;
-			bandwidth_graph_px_per_ms=a/1000;
-			a=100/a;
-			for(b=1;b<6;b++)
-				bandwidth_graph_x_numbers[b].innerHTML=(b*a).toFixed(2);">
+		<select id="bandwidth_shown_type"
+			onchange="change_bandwidth_shown_type();">
+			<option value="0">total</option>
+		</select>
+		<input type="number" value="10" step="1" min="1" id="bandwidth_graph_px_per_s"
+			onchange="change_bandwidth_graph_speed();">
 		<label for="bandwidth_graph_px_per_sec">pixles per second</label>
 		<br>
 		<svg id="bandwidth_graph" viewBox="0 0 712 436">
@@ -4528,8 +4717,7 @@ messages_data_size=<?=messages_data_size?>;
 				class="bandwidth_graph_reference_line" />
 			<line x1="590" x2="590" y1="40" y2="360"
 				class="bandwidth_graph_reference_line" />
-			<path id="upload_path" />
-			<path id="download_path" />
+			<g id="bandwidth_graph_path_container"></g>
 			<rect x="0" y="49" width="90" height="302"
 				class="bandwidth_graph_cover" />
 			<rect x="90" y="40" width="600" height="320"
@@ -4559,7 +4747,7 @@ messages_data_size=<?=messages_data_size?>;
 			<text x="615" y="382" class="bandwidth_graph_label">s</text>
 			<text x="700" y="382" class="bandwidth_graph_label">s</text>
 
-			<!-- The order of these numbers is important. -->
+			<!-- The order of these numbers shouldn't be altered. -->
 			<text x="675" y="382" class=
 				"bandwidth_graph_label bandwidth_graph_label_x_number">0</text>
 			<text x="560" y="382" class=
@@ -4598,7 +4786,7 @@ messages_data_size=<?=messages_data_size?>;
 			onchange="update_messages_display(0,this.checked);">
 		<label for="messages_severity_0">INFO</label>
 		<input type="checkbox" id="messages_severity_1"
-			onchange="update_messages_display(1,this.checked);" checked>
+			onchange="update_messages_display(1,this.checked);"ed>
 		<label for="messages_severity_1">NOTICE</label>
 		<input type="checkbox" id="messages_severity_2"
 			onchange="update_messages_display(2,this.checked);" checked>
@@ -4607,10 +4795,7 @@ messages_data_size=<?=messages_data_size?>;
 			onchange="update_messages_display(3,this.checked);" checked>
 		<label for="messages_severity_3">ERR</label>
 		<br>
-		<button type="button"
-			onclick="var a;
-			while(a=messages_table_tbody.firstChild)
-				messages_table_tbody.removeChild(a);">clear</button>
+		<button type="button" onclick="message_log_clear();">clear</button>
 		<div id="messages_table_box">
 			<table border="1" id="messages_table">
 				<thead id="messages_table_header">
@@ -4634,13 +4819,16 @@ messages_data_size=<?=messages_data_size?>;
 		<div id="custom_command_console"></div>
 
 		<button type="button"
-			onclick="
-			var a;
-			while(a=custom_command_console.firstChild)
-				custom_command_console.removeChild(a);">clear</button>
+			onclick="custom_command_console_clear();">clear</button>
 
-		<br> <input type="text" id="custom_command_input_box"
-			onkeydown="custom_command_handle_key(event);">
+		<br>
+
+		<input type="text" id="custom_command_input_box"
+			onkeydown="custom_command_handle_key(event);"
+			onchange="custom_command_handle_change();"
+			onkeyup="custom_command_handle_change();">
+
+		<div id="custom_command_hint_box"></div>
 
 		<h1 id="tor_settings">tor settings</h1>
 
@@ -4666,23 +4854,23 @@ messages_data_size=<?=messages_data_size?>;
 				</tr>
 			</thead>
 <?php
-foreach ( $tor_options_name as $a => $b ) {
+foreach ( $tor_options_name as $a => $name ) {
 	$type = $tor_options_type [$a];
 	?>
 				<tbody class="tor_options_table_row">
 				<tr>
 					<td class="tor_options_name">
-						<?=$b?>
+						<?=$name?>
 					</td>
 					<td>
 						<?=$type?>
 					</td>
 					<td>
-						<input type="checkbox"
-							class="tor_options_default_checkbox"
-							id="tor_options_default_checkbox_<?=$a?>"
-							<?php if($tor_options_value[$a]===false)
-								echo 'checked';?>>
+						<input type="checkbox" class="tor_options_default_checkbox"
+						id="tor_options_default_checkbox_<?=$a?>"
+						<?php if($tor_options_value [$a] === null)
+							echo 'checked';
+						?>>
 					</td>
 					<td>
 						<label for="tor_options_default_checkbox_<?=$a?>">
@@ -4691,7 +4879,7 @@ foreach ( $tor_options_name as $a => $b ) {
 					</td>
 					<td>
 <?php
-	if (($value = $tor_options_value [$a]) === false)
+	if (($value = $tor_options_value [$a]) === null)
 		$value = '';
 	switch ($type) {
 		case 'Integer' :
@@ -4725,8 +4913,11 @@ foreach ( $tor_options_name as $a => $b ) {
 		'>auto</option><option value="0"></option>0<option value="1" selected';
 			else
 				echo
-				'>auto</option><option value="0"></option>0<option value="1"';
+				'>auto</option><option value="0">0</option><option value="1"';
 			echo '>1</option></select>';
+			break;
+		case 'LineList':
+			echo '<textarea class="tor_options_value">', $value,'</textarea>';
 			break;
 		default :
 			echo '<input class="tor_options_value" type="text" value="', $value,
@@ -4735,7 +4926,7 @@ foreach ( $tor_options_name as $a => $b ) {
 	?>
 					</td>
 <?php
-	if (isset ( $tor_options_description [$b] )) {
+	if (isset ( $tor_options_description [$name] )) {
 		?>
 					<td>
 						<a class="tor_option_show_description"
@@ -4745,7 +4936,9 @@ foreach ( $tor_options_name as $a => $b ) {
 										style.display='table-row';
 								tor_options_hide_description_<?=$a?>.
 										style.display='inline';
-								this.style.display='none';">show description</a>
+								this.style.display='none';">
+							show description
+						</a>
 						<a class="tor_option_hide_description"
 							id="tor_options_hide_description_<?=$a?>"
 							href="javascript:void(0)"
@@ -4754,7 +4947,9 @@ foreach ( $tor_options_name as $a => $b ) {
 								tor_options_show_description_<?=$a?>.
 										style.display='inline';
 								this.style.display='none';">
-							hide description</a></td>
+							hide description
+						</a>
+					</td>
 				</tr>
 				<tr id="tor_options_description_<?=$a?>"
 					class="tor_option_description_block">
@@ -4763,7 +4958,7 @@ foreach ( $tor_options_name as $a => $b ) {
 							</td>
 <?php
 	} else
-		echo '<td>no description avilable</td>';
+		echo '<td>no description available</td>';
 	?>
 					</tr>
 			</tbody>
@@ -4771,11 +4966,12 @@ foreach ( $tor_options_name as $a => $b ) {
 }
 ?>
 		</table>
-		<button type="button" onclick="update_settings_handle();">
+		<button type="button" onclick="update_settings_handler();">
 			update settings
 		</button>
 		<button type="button" onclick="custom_command_popup('saveconf');">
-			save settings to torrc</button>
+			save settings to torrc
+		</button>
 
 		<h1 id="controller_settings">PHP tor Controller settings</h1>
 
@@ -4786,122 +4982,17 @@ foreach ( $tor_options_name as $a => $b ) {
 				<tbody>
 					<tr>
 						<td>
-							<label for="connection_method">
-								connection method
+							<label for="connection_url">
+								connection url
 							</label>
 						</td>
 						<td>
-							<select id="connection_method"
-								name="connection_method"
-								onchange="if(this.value=='tcp') {
-										connection_tcp.style.display
-												='table-row-group';
-										connection_unix_socket.style.display
-												='none';
-									} else {
-										connection_tcp.style.display='none';
-										connection_unix_socket.style.display
-												='table-row-group';
-									}">
-								<option value="tcp"
-									<?php
-									if( $tc_connection_method
-											== tc_connection_method_network )
-										echo 'selected';?>>
-									tcp
-								</option>
-								<option value="unix_socket"
-									<?php
-									if($tc_connection_method
-											== tc_connection_method_unix_socket
-											)
-										echo 'selected';?>>
-									unix socket
-								</option>
-						</select></td>
-					</tr>
-				</tbody>
-				<tbody id="connection_tcp"
-					<?php if($tc_connection_method
-							!= tc_connection_method_network)
-						echo 'style="display:none;"';?>>
-					<tr>
-						<td>
-							<label for="connection_tcp_hostname">host</label>
-						</td>
-						<td>
-							<input id="connection_tcp_hostname"
-								name="connection_tcp_hostname" type="text"
-								value="<?=htmlspecialchars(
-										$connection_tcp_hostname)?>">
+							<input name="connection_url" id="connection_url"
+								type="text"
+								value=
+								"<?=htmlspecialchars($tc_connection_url)?>">
 						</td>
 					</tr>
-					<tr>
-						<td><label for="connection_tcp_port"> port </label></td>
-						<td>
-							<input id="connection_tcp_port"
-								name="connection_tcp_port"
-								type="text" value="<?=$connection_tcp_port?>">
-						</td>
-					</tr>
-					<tr>
-						<td>
-							<label for="connection_tcp_secure">
-								ssl or tls
-							</label>
-						</td>
-						<td>
-							<select id="connection_tcp_secure"
-								name="connection_tcp_secure">
-									<option value="none"
-										<?php
-										if( $connection_tcp_secure
-												== tc_connection_secure_none)
-											echo 'selected';
-										?>>
-										none
-									</option>
-									<option value="ssl"
-										<?php
-										if( $connection_tcp_secure
-												== tc_connection_secure_ssl)
-											echo 'selected';
-										?>>
-										ssl
-									</option>
-									<option value="tls"
-										<?php
-											if($connection_tcp_secure
-													== tc_connection_secure_tls)
-												echo 'selected';
-										?>>
-										tls
-									</option>
-							</select>
-						</td>
-					</tr>
-				</tbody>
-				<tbody id="connection_unix_socket"
-					<?php
-						if($tc_connection_method
-								!= tc_connection_method_unix_socket)
-							echo 'style="display:none;"';
-					?>>
-					<tr>
-						<td>
-							<label for="connection_unix_socket_path">
-								path
-							</label>
-						</td>
-						<td>
-							<input id="connection_unix_socket_path"
-								name="connection_unix_socket_path" type="text"
-								value="<?=htmlspecialchars(
-										$connection_unix_socket_path)?>">
-						</td>
-					</tr>
-				</tbody>
-				<tbody>
 					<tr>
 						<td>
 							<label for="connection_auth_method">
@@ -4952,6 +5043,14 @@ foreach ( $tor_options_name as $a => $b ) {
 									?>>
 									cookie
 								</option>
+								<option value="safecookie"
+									<?php
+									if($tc_connection_auth
+											== tc_connection_auth_safecookie)
+										echo 'selected';
+									?>>
+									safe cookie
+								</option>
 							</select>
 						</td>
 					</tr>
@@ -4985,7 +5084,8 @@ foreach ( $tor_options_name as $a => $b ) {
 						</td>
 						<td>
 							<input type="checkbox"
-								id="connection_auth_method_password_show_password"
+								id=
+								"connection_auth_method_password_show_password"
 								onchange="if(this.checked)
 										connection_auth_method_password_password
 												.type='text';
@@ -4996,7 +5096,9 @@ foreach ( $tor_options_name as $a => $b ) {
 				</tbody>
 				<tbody id="connection_auth_method_cookie"
 					<?php
-					if($tc_connection_auth != tc_connection_auth_cookie)
+					if ($tc_connection_auth != tc_connection_auth_cookie
+							&& $tc_connection_auth
+							!= tc_connection_auth_safecookie)
 						echo 'style="display:none;"';
 					?>>
 					<tr>
@@ -5007,11 +5109,12 @@ foreach ( $tor_options_name as $a => $b ) {
 							</label>
 						</td>
 						<td>
-							<input id="connection_auth_method_cookie_cookie_path"
+							<input
+								id="connection_auth_method_cookie_cookie_path"
 								name="connection_auth_method_cookie_path"
 								type="text"
 								value="<?=htmlspecialchars(
-										$connection_auth_cookie)?>">
+											$connection_auth_cookie)?>">
 						</td>
 					</tr>
 				</tbody>
