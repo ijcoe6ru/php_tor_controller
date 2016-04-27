@@ -3641,8 +3641,9 @@ function custom_command_function() {
 	header ( 'Content-type: text/plain' );
 
 	if (isset ( $_POST ['custom_command_command'] )) {
-		implode ( "\n",
-				exec_command_lines ( $_POST ['custom_command_command'] ) );
+		echo implode ( "\n",
+				exec_command_lines ( $_POST ['custom_command_command'] ) ),
+				"\n";
 	}
 
 	close_tc ();
