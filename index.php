@@ -4955,7 +4955,7 @@ foreach ( $tor_options_name as $a => $name ) {
 				<tr id="tor_options_description_<?=$a?>"
 					class="tor_option_description_block">
 					<td colspan="6">
-								<?=$tor_options_description[$b]?>
+								<?=$tor_options_description[$name]?>
 							</td>
 <?php
 	} else
