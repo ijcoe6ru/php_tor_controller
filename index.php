@@ -3253,8 +3253,8 @@ function get_response_lines() {
 					break;
 				$line = $response_lines [$index ++];
 				if ($line === '.') {
-					$state = 3;
-					goto case3;
+					$state = 0;
+					goto case0;
 				}
 				goto case1;
 
@@ -3268,18 +3268,6 @@ function get_response_lines() {
 					goto case0;
 				}
 				goto case2;
-
-			case 3 : // waiting for a line of <error code>" "
-			case3:
-				if (! isset ( $response_lines [$index] ))
-					break;
-				$line = $response_lines [$index ++];
-				if (substr ( $line, 0, 4 ) === $error_code_space) {
-					$state = 0;
-					goto case0;
-				}
-				$state = 1;
-				goto case1;
 		}
 	}
 }
