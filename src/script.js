@@ -422,61 +422,61 @@ function custom_command_handle_change() {
 					"VERSION",
 
 					// events names
-					"CIRC",
-					"CIRC_MINOR",
-					"STREAM",
-					"ORCONN",
-					"BW",
-					"DEBUG",
-					"INFO",
-					"NOTICE",
-					"WARN",
-					"ERR",
-					"NEWDESC",
 					"ADDRMAP",
 					"AUTHDIR_NEWDESCS",
-					"DESCCHANGED",
-					"NS",
-					"STATUS_GENERAL",
-					"STATUS_CLIENT",
-					"STATUS_SERVER",
-					"GUARD",
-					"STREAM_BW",
-					"CLIENTS_SEEN",
-					"NEWCONSENSUS",
 					"BUILDTIMEOUT_SET",
-					"SIGNAL",
+					"BW",
+					"CELL_STATS",
+					"CIRC",
+					"CIRC_BW",
+					"CIRC_MINOR",
+					"CLIENTS_SEEN",
 					"CONF_CHANGED",
 					"CONN_BW",
-					"CELL_STATS",
-					"TB_EMPTY",
-					"CIRC_BW",
-					"TRANSPORT_LAUNCHED",
+					"DEBUG",
+					"DESCCHANGED",
+					"ERR",
+					"GUARD",
 					"HS_DESC",
 					"HS_DESC_CONTENT",
+					"INFO",
 					"NETWORK_LIVENESS",
+					"NEWCONSENSUS",
+					"NEWDESC",
+					"NOTICE",
+					"NS",
+					"ORCONN",
+					"SIGNAL",
+					"STATUS_CLIENT",
+					"STATUS_GENERAL",
+					"STATUS_SERVER",
+					"STREAM",
+					"STREAM_BW",
+					"TB_EMPTY",
+					"TRANSPORT_LAUNCHED",
+					"WARN",
 
 					// signal names
-					"RELOAD",
-					"HUP",
-					"SHUTDOWN",
-					"DUMP",
-					"USR1",
+					"CLEARDNSCACHE",
 					"DEBUG",
-					"USR2",
+					"DUMP",
 					"HALT",
-					"TERM",
+					"HEARTBEAT1",
+					"HUP",
 					"INT",
 					"NEWNYM",
-					"CLEARDNSCACHE",
-					"HEARTBEAT1"
+					"RELOAD",
+					"SHUTDOWN",
+					"TERM",
+					"USR1",
+					"USR2"
 			];
 
 	var typed = custom_command_input_box.value.toUpperCase(),
 			len = typed.length,
 			from = 0,
 			to = 29,
-			hint_pos_char, // position to place hint box in characters
+			hint_pos_char = 0, // position to place hint box in characters
 			a,
 			b;
 
@@ -485,36 +485,36 @@ function custom_command_handle_change() {
 		from = a.from;
 		to = a.to;
 
-		if (from < to)
-			hint_pos_char = 0;
 		// none matches
-		else {
-			b = cmp_prefix(typed, "SETEVENTS *");
-			if (b == 0) {
-				from = 101;
-				to = 134;
-				hint_pos_char = 10;
-			} else if (b > 0) {
-				if (cmp_prefix(typed, "SIGNAL *") == 0) {
-					from = 134;
-					to = 147;
-					hint_pos_char = 7;
+		if (from == to) {
+			var commands = [ {
+				prefix : "GETINFO *",
+				start_pos : 8,
+				hint_from : 29,
+				hint_to : 101
+			}, {
+				prefix : "SETEVENTS *",
+				start_pos : 10,
+				hint_from : 101,
+				hint_to : 134
+			}, {
+				prefix : "SIGNAL *",
+				start_pos : 7,
+				hint_from : 134,
+				hint_to : 147
+			} ];
+			for (a = 0; a < commands.length; a++)
+				if (!cmp_prefix(typed, commands[a].prefix)) {
+					var c = commands[a];
+					hint_pos_char = c.start_pos;
+					while ((b = typed.indexOf(' ', hint_pos_char)) != -1)
+						hint_pos_char = b + 1;
+					a = search_sorted_array(keywords, c.hint_from, c.hint_to,
+							typed.substr(hint_pos_char));
+					from = a.from;
+					to = a.to;
+					break;
 				}
-			} else {
-				if (cmp_prefix(typed, "GETINFO *") == 0) {
-					from = 29;
-					to = 101;
-					hint_pos_char = 8;
-				}
-			}
-			if (hint_pos_char) {
-				while ((b = typed.indexOf(' ', hint_pos_char)) != -1)
-					hint_pos_char = b + 1;
-				a = search_sorted_array(keywords, from, to, typed
-						.substr(hint_pos_char));
-				from = a.from;
-				to = a.to;
-			}
 		}
 	} else {
 		to = 0;
