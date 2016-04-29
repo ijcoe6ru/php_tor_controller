@@ -267,9 +267,56 @@ function custom_command_handle_key(event) {
 	}
 }
 
+/**
+ * This function compares to_match with pattern. "*" means any character. It
+ * returns -1, 0, or 1 respectively if to_match is less than, equal to, or
+ * greater than pattern.
+ */
+function cmp_prefix(to_match, pattern) {
+	for (var i = 0; to_match[i]; i++) {
+		if (!pattern[i])
+			return 1;
+		if (pattern[i] == '*')
+			return 0;
+		if (to_match[i] < pattern[i])
+			return -1;
+		if (to_match[i] > pattern[i])
+			return 1;
+	}
+	return 0;
+}
+
+function search_sorted_array(keys, from, to, to_match) {
+	var a = to, b, c;
+	while (from < a) {
+		b = (from + a) >> 1;
+		c = cmp_prefix(to_match, keys[b]);
+		if (c > 0)
+			from = b + 1;
+		else {
+			a = b;
+			if (c < 0)
+				to = b;
+		}
+	}
+	while (a < to) {
+		b = (a + to) >> 1;
+		c = cmp_prefix(to_match, keys[b]);
+		if (c >= 0)
+			a = b + 1;
+		else
+			to = b;
+	}
+	return {
+		from : from,
+		to : to
+	};
+}
+
 function custom_command_handle_change() {
 	// to add hint
-	var control_commands = [
+	var keywords = [
+	                // commands
 					"ADD_ONION",
 					"ATTACHSTREAM",
 					"AUTHCHALLENGE",
@@ -298,55 +345,195 @@ function custom_command_handle_change() {
 					"SETROUTERPURPOSE",
 					"SIGNAL",
 					"TAKEOWNERSHIP",
-					"USEFEATURE"
+					"USEFEATURE",
+
+					// info names
+					"ACCOUNTING/BYTES",
+					"ACCOUNTING/BYTES-LEFT",
+					"ACCOUNTING/ENABLED",
+					"ACCOUNTING/HIBERNATING",
+					"ACCOUNTING/INTERVAL-END",
+					"ACCOUNTING/INTERVAL-START",
+					"ACCOUNTING/INTERVAL-WAKE",
+					"ADDRESS",
+					"ADDRESS-MAPPINGS/ALL",
+					"ADDRESS-MAPPINGS/CACHE",
+					"ADDRESS-MAPPINGS/CONFIG",
+					"ADDRESS-MAPPINGS/CONTROL",
+					"BW-EVENT-CACHE",
+					"CIRCUIT-STATUS",
+					"CONFIG-DEFAULTS-FILE",
+					"CONFIG-FILE",
+					"CONFIG-TEXT",
+					"CONFIG/*",
+					"CONFIG/DEFAULTS",
+					"CONFIG/NAMES",
+					"CONSENSUS/*",
+					"DESC-ANNOTATIONS/ID/*",
+					"DESC/ALL-RECENT",
+					"DESC/ID/*",
+					"DESC/NAME/*",
+					"DIR-USAGE",
+					"DIR/SERVER/*",
+					"DIR/STATUS-VOTE/CURRENT/CONSENSUS",
+					"DIR/STATUS/*",
+					"DORMANT",
+					"ENTRY-GUARDS",
+					"EVENTS/NAMES",
+					"EXIT-POLICY/DEFAULT",
+					"EXIT-POLICY/FULL",
+					"EXIT-POLICY/IPV4",
+					"EXIT-POLICY/IPV6",
+					"EXTRA-INFO/DIGEST/*",
+					"FEATURES/NAMES",
+					"HS/CLIENT/DESC/ID*",
+					"INFO/NAMES",
+					"IP-TO-COUNTRY/*",
+					"LIMITS/MAX-MEM-IN-QUEUES",
+					"MD/ID/*",
+					"MD/NAME/*",
+					"NET/LISTENERS/*",
+					"NETWORK-LIVENESS",
+					"NETWORK-STATUS",
+					"NS/ALL",
+					"NS/ID/*",
+					"NS/NAME/*",
+					"NS/PURPOSE/*",
+					"ONIONS/CURRENT",
+					"ONIONS/DETACHED",
+					"ORCONN-STATUS",
+					"PROCESS/DESCRIPTOR-LIMIT",
+					"PROCESS/PID",
+					"PROCESS/UID",
+					"PROCESS/USER",
+					"SIGNAL/NAMES",
+					"STATUS/BOOTSTRAP-PHASE",
+					"STATUS/CIRCUIT-ESTABLISHED",
+					"STATUS/CLIENTS-SEEN",
+					"STATUS/ENOUGH-DIR-INFO",
+					"STATUS/FRESH-RELAY-DESCS",
+					"STATUS/VERSION/CURRENT",
+					"STATUS/VERSION/NUM-CONCURRING",
+					"STATUS/VERSION/NUM-VERSIONING",
+					"STATUS/VERSION/RECOMMENDED",
+					"STREAM-STATUS",
+					"TRAFFIC/READ",
+					"TRAFFIC/WRITTEN",
+					"VERSION",
+
+					// events names
+					"CIRC",
+					"CIRC_MINOR",
+					"STREAM",
+					"ORCONN",
+					"BW",
+					"DEBUG",
+					"INFO",
+					"NOTICE",
+					"WARN",
+					"ERR",
+					"NEWDESC",
+					"ADDRMAP",
+					"AUTHDIR_NEWDESCS",
+					"DESCCHANGED",
+					"NS",
+					"STATUS_GENERAL",
+					"STATUS_CLIENT",
+					"STATUS_SERVER",
+					"GUARD",
+					"STREAM_BW",
+					"CLIENTS_SEEN",
+					"NEWCONSENSUS",
+					"BUILDTIMEOUT_SET",
+					"SIGNAL",
+					"CONF_CHANGED",
+					"CONN_BW",
+					"CELL_STATS",
+					"TB_EMPTY",
+					"CIRC_BW",
+					"TRANSPORT_LAUNCHED",
+					"HS_DESC",
+					"HS_DESC_CONTENT",
+					"NETWORK_LIVENESS",
+
+					// signal names
+					"RELOAD",
+					"HUP",
+					"SHUTDOWN",
+					"DUMP",
+					"USR1",
+					"DEBUG",
+					"USR2",
+					"HALT",
+					"TERM",
+					"INT",
+					"NEWNYM",
+					"CLEARDNSCACHE",
+					"HEARTBEAT1"
 			];
 
-	var typed = custom_command_input_box.value, len = typed.length, from = 0,
-			to = 0;
+	var typed = custom_command_input_box.value.toUpperCase(),
+			len = typed.length,
+			from = 0,
+			to = 29,
+			hint_pos_char, // position to place hint box in characters
+			a,
+			b;
 
-	if (len && len < 18) {
-		var a = 29, b, c;
-		from = 0;
-		to = 29;
-		typed = typed.toUpperCase();
-		while (from < a) {
-			b = (from + a) >> 1;
-			c = control_commands[b].substr(0, len);
-			if (c < typed)
-				from = b + 1;
-			else {
-				a = b;
-				if (c > typed)
-					to = b;
+	a = search_sorted_array(keywords, 0, 29, typed);
+	from = a.from;
+	to = a.to;
+
+	if (from < to)
+		hint_pos_char = 0;
+	// none matches
+	else {
+		b = cmp_prefix(typed, "SETEVENTS *");
+		if (b == 0) {
+			from = 101;
+			to = 134;
+			hint_pos_char = 10;
+		} else if (b > 0) {
+			if (cmp_prefix(typed, "SIGNAL *") == 0) {
+				from = 134;
+				to = 147;
+				hint_pos_char = 7;
+			}
+		} else {
+			if (cmp_prefix(typed, "GETINFO *") == 0) {
+				from = 29;
+				to = 101;
+				hint_pos_char = 8;
 			}
 		}
-		a = from;
-		while (a < to) {
-			b = (a + to) >> 1;
-			c = control_commands[b].substr(0, len);
-			if (c <= typed)
-				a = b + 1;
-			else
-				to = b;
+		if (hint_pos_char) {
+			while ((b = typed.indexOf(' ', hint_pos_char)) != -1)
+				hint_pos_char = b+1;
+			a = search_sorted_array(keywords, from, to, typed
+					.substr(hint_pos_char));
+			from = a.from;
+			to = a.to;
 		}
 	}
 
 	if (from < to) {
 		custom_command_hint_box_jquery.empty();
-		var caret_position = getCaretCoordinates(custom_command_input_box, 0);
+		var caret_coordinates = getCaretCoordinates(custom_command_input_box,
+				hint_pos_char);
 		while (from < to) {
 			var new_element;
 			new_element = $('<div class="custom_command_hint"></div>')[0];
-			new_element.textContent = control_commands[from];
+			new_element.textContent = keywords[from];
 			custom_command_hint_box_jquery.append(new_element);
 			from++;
 		}
-		custom_command_hint_box_jquery.css('top', String(caret_position.top
+		custom_command_hint_box_jquery.css('top', String(caret_coordinates.top
 				+ custom_command_input_box.offsetTop)
 				+ 'px');
-		custom_command_hint_box_jquery.css('left', String(caret_position.left
-				+ custom_command_input_box.style.offsetLeft)
-				+ 'px');
+		custom_command_hint_box_jquery.css('left',
+				String(caret_coordinates.left
+						+ custom_command_input_box.offsetLeft)
+						+ 'px');
 		custom_command_hint_box_jquery.show();
 	} else
 		custom_command_hint_box_jquery.hide();
@@ -401,7 +588,7 @@ function update_bandwidth_graph() {
 			bandwidth_graph_path_group= document.createElementNS(
 					"http://www.w3.org/2000/svg", 'g');
 			bandwidth_graph_path_group.style.animationName
-				= 'bandwidth_data_path_slide';
+					= 'bandwidth_data_path_slide';
 			bandwidth_graph_path_group.style.animationDuration
 					= String(0.6 / bandwidth_graph_px_per_ms) + 's';
 			bandwidth_graph_path_group.style.animationTimingFunction = 'linear';
@@ -441,26 +628,28 @@ function tor_options_change_category(category) {
 	}
 }
 
-function custom_command_popup(command) {
-	custom_command_request(
-			command,
-			function(data) {
-				var new_custom_command_output_line, last_line, current_line;
-				command_command_box.textContent = command;
-				last_line = 0;
-				while ((current_line = data.indexOf("\n", last_line)) != -1) {
-					new_custom_command_output_line
-							= $('<div class="console_output_line"></div>')[0];
-					new_custom_command_output_line.textContent = data.substr(
-							last_line, current_line - last_line);
-					last_line = current_line + 1;
-					command_response_box_jquery
-							.append(new_custom_command_output_line);
-				}
-				command_.style.display = 'block';
-			});
+function custom_command_popup_data_handler(data) {
+	var new_custom_command_output_line, last_line, current_line;
+	command_command_box.textContent = command;
+	last_line = 0;
+	while ((current_line = data.indexOf("\n", last_line)) != -1) {
+		new_custom_command_output_line
+				= $('<div class="console_output_line"></div>')[0];
+		new_custom_command_output_line.textContent = data.substr(last_line,
+				current_line - last_line);
+		last_line = current_line + 1;
+		command_response_box_jquery.append(new_custom_command_output_line);
+	}
+	command_.style.display = 'block';
 }
 
+function custom_command_popup(command) {
+	custom_command_request(command, custom_command_popup_data_handler);
+}
+
+/**
+ * This function sorts array and array_sat using quicksort.
+ */
 function sort(array, array_sat, start, end) {
 	var a = start, b = end, c = array[start], d = array[end],
 			e = array_sat[start], f = array_sat[end];
@@ -496,7 +685,7 @@ function update_status_fail_handler() {
 }
 
 function update_status_handler(data) {
-	/*
+	/**
 	 * data will be empty if something fails on the server side.
 	 *
 	 * Otherwise, he first 8 lines are the following status of tor:
@@ -1365,7 +1554,7 @@ function update_status_handler(data) {
 }
 
 function update_status() {
-	/*
+	/**
 	 * It is possible that too many requests occur at the same time in the
 	 * browser, such as when openning many web pages at the same time. In that
 	 * case, some requests will be held until the number of concurrent requests
@@ -1393,7 +1582,7 @@ function update_status() {
 }
 
 function initial_request_handle(data) {
-	/*
+	/**
 	 * Data will be empty if something fails on the server side.
 	 *
 	 * Otherwise, the first line of response is a number in decimal n. The next
