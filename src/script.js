@@ -480,40 +480,44 @@ function custom_command_handle_change() {
 			a,
 			b;
 
-	a = search_sorted_array(keywords, 0, 29, typed);
-	from = a.from;
-	to = a.to;
+	if (typed[0]) {
+		a = search_sorted_array(keywords, 0, 29, typed);
+		from = a.from;
+		to = a.to;
 
-	if (from < to)
-		hint_pos_char = 0;
-	// none matches
-	else {
-		b = cmp_prefix(typed, "SETEVENTS *");
-		if (b == 0) {
-			from = 101;
-			to = 134;
-			hint_pos_char = 10;
-		} else if (b > 0) {
-			if (cmp_prefix(typed, "SIGNAL *") == 0) {
-				from = 134;
-				to = 147;
-				hint_pos_char = 7;
+		if (from < to)
+			hint_pos_char = 0;
+		// none matches
+		else {
+			b = cmp_prefix(typed, "SETEVENTS *");
+			if (b == 0) {
+				from = 101;
+				to = 134;
+				hint_pos_char = 10;
+			} else if (b > 0) {
+				if (cmp_prefix(typed, "SIGNAL *") == 0) {
+					from = 134;
+					to = 147;
+					hint_pos_char = 7;
+				}
+			} else {
+				if (cmp_prefix(typed, "GETINFO *") == 0) {
+					from = 29;
+					to = 101;
+					hint_pos_char = 8;
+				}
 			}
-		} else {
-			if (cmp_prefix(typed, "GETINFO *") == 0) {
-				from = 29;
-				to = 101;
-				hint_pos_char = 8;
+			if (hint_pos_char) {
+				while ((b = typed.indexOf(' ', hint_pos_char)) != -1)
+					hint_pos_char = b + 1;
+				a = search_sorted_array(keywords, from, to, typed
+						.substr(hint_pos_char));
+				from = a.from;
+				to = a.to;
 			}
 		}
-		if (hint_pos_char) {
-			while ((b = typed.indexOf(' ', hint_pos_char)) != -1)
-				hint_pos_char = b+1;
-			a = search_sorted_array(keywords, from, to, typed
-					.substr(hint_pos_char));
-			from = a.from;
-			to = a.to;
-		}
+	} else {
+		to = 0;
 	}
 
 	if (from < to) {
