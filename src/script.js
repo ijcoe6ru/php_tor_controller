@@ -56,8 +56,6 @@ var bandwidth_shown_object,
 		bandwidth_shown_type_jquery,
 		bandwidth_graph_path_container_jquery,
  		bandwidth_graph_path_group = null,
- 		stream_ids = [],
- 		circuit_ids = [],
   		bandwidth_select_object_to_remove = null,
   		custom_command_hint_box_jquery;
 
@@ -632,7 +630,7 @@ function tor_options_change_category(category) {
 	}
 }
 
-function custom_command_popup_data_handler(data) {
+function custom_command_popup_data_handler(data, command) {
 	var new_custom_command_output_line, last_line, current_line;
 	command_command_box.textContent = command;
 	last_line = 0;
@@ -648,7 +646,9 @@ function custom_command_popup_data_handler(data) {
 }
 
 function custom_command_popup(command) {
-	custom_command_request(command, custom_command_popup_data_handler);
+	custom_command_request(command, function(data) {
+		custom_command_popup_data_handler(data, command);
+	});
 }
 
 /**
@@ -686,6 +686,7 @@ function number_compare(a, b) {
 
 function update_status_fail_handler() {
 	status_fields[0].textContent = 'failed';
+	console.log("failed to connect to php tor controller");
 }
 
 function update_status_handler(data) {
@@ -865,29 +866,22 @@ function update_status_handler(data) {
 
 					// to remove bandwidth data of streams that don't exist
 					new_stream_ids.sort(number_compare);
-					for (var a = 0; a < stream_num; a++) {
-						var bandwidth_tree
-								= bandwidth_data_type
-										[bandwidth_data_type_stream],
-								bandwidth_object, select_object;
-						if (!in_sorted_array(new_stream_ids, num,
-								stream_ids[a])) {
-							if (bandwidth_object = bandwidth_tree.find({
-								id : stream_ids[a]
-							})) {
-								bandwidth_tree.remove(bandwidth_object);
-								bandwidth_data_all_tree
-										.remove(bandwidth_object);
-								select_object = bandwidth_object.select_object;
-								if (select_object.selected)
-									bandwidth_select_object_to_remove
-											= select_object;
-								else
-									$(select_object).remove();
-							}
-						}
-					}
-					stream_ids = new_stream_ids;
+					bandwidth_tree
+							= bandwidth_data_type[bandwidth_data_type_stream];
+					bandwidth_tree
+							.each(function(data) {
+								if (!in_sorted_array(new_stream_ids, num,
+										data.id)) {
+									bandwidth_tree.remove(data);
+									bandwidth_data_all_tree.remove(data);
+									select_object = data.select_object;
+									if (select_object.selected)
+										bandwidth_select_object_to_remove
+												= select_object;
+									else
+										$(select_object).remove();
+								}
+							});
 
 					stream_number.textContent = num;
 					stream_num = num;
@@ -1041,31 +1035,26 @@ function update_status_handler(data) {
 						if (circuit_elements[a])
 							$(circuit_elements[a]).remove();
 
-					// to remove bandwidth data of circuits that don't exist
+					// to remove bandwidth data of circuits that no longer exist
 					new_circuit_ids.sort(number_compare);
-					for (var a = 0; a < circuit_num; a++) {
-						var bandwidth_tree
-								= bandwidth_data_type
-										[bandwidth_data_type_circ],
-								bandwidth_object, select_object;
-						if (!in_sorted_array(new_circuit_ids, num,
-								circuit_ids[a])) {
-							if (bandwidth_object = bandwidth_tree.find({
-								id : circuit_ids[a]
-							})) {
-								bandwidth_tree.remove(bandwidth_object);
-								bandwidth_data_all_tree
-										.remove(bandwidth_object);
-								select_object = bandwidth_object.select_object;
-								if (select_object.selected)
-									bandwidth_select_object_to_remove
-											= select_object;
-								else
-									$(select_object).remove();
-							}
-						}
-					}
-					circuit_ids = new_circuit_ids;
+					bandwidth_tree
+							= bandwidth_data_type[bandwidth_data_type_circ];
+					bandwidth_tree
+							.each(function(data) {
+								if (!in_sorted_array(new_circuit_ids, num,
+										data.id)) {
+									bandwidth_tree.remove(data);
+									bandwidth_data_all_tree.remove(data);
+									select_object = data.select_object;
+									if (select_object.selected)
+										bandwidth_select_object_to_remove
+												= select_object;
+									else
+										$(select_object).remove();
+								}
+							});
+
+					circuit_num = num;
 
 					circuit_number.textContent = num;
 					circuit_num = num;
@@ -1557,6 +1546,10 @@ function update_status_handler(data) {
 	}
 }
 
+function update_status_complete_handler() {
+	concurrent_requests_num--;
+}
+
 function update_status() {
 	/**
 	 * It is possible that too many requests occur at the same time in the
@@ -1577,9 +1570,7 @@ function update_status() {
 				'action' : 'update_status'
 			},
 			success : update_status_handler,
-			complete : function() {
-				concurrent_requests_num--;
-			},
+			complete : update_status_complete_handler,
 			error : update_status_fail_handler
 		});
 	}

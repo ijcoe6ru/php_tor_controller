@@ -6,8 +6,17 @@ define ( 'config_file_path', 'config.php' );
 define ( 'update_status_interval', 500 );
 
 // interval to check for another instance of this script capturing asynchronous
-// events
-define ( 'update_status_check_interval', 100 );
+// events in microseconds
+define ( 'update_status_check_interval', 100000 );
+
+// time to wait and store asynchronous events into
+// $_SESSION['php_tor_controller_last_event_capture_events'] before writing to
+// $_SESSION['php_tor_controller_last_event_capture'] in microseconds
+define ( 'update_status_initial_wait', 25000 );
+
+// maximum difference between the time 2 instances of this script receives the
+// same asynchronous event in microseconds
+define ( 'event_received_time_difference', 3000 );
 
 // number of seconds of bandwidth data to be stored
 define ( 'bandwidth_data_size', 601 );
@@ -3193,7 +3202,7 @@ class getinfo_value {
 	}
 }
 
-class event_cache_type {
+class event_cache_t {
 	function __construct($time, $line) {
 		$this->time = $time;
 		$this->line = $line;
@@ -3201,24 +3210,42 @@ class event_cache_type {
 }
 
 /**
+ * This function generates an error.
+ *
+ * It should be called before any header is sent.
+ */
+function http_fail() {
+	// $called is to ensure this function doesn't get called in an infinite
+	// recursion.
+	static $called = 0;
+	if (! $called) {
+		$called = 1;
+		close_tc ();
+		header ( "HTTP/1.1 500 Internal Server Error" );
+		exit ();
+	}
+}
+
+/**
  * This function reads response from tor control port. The response will be
  * valid according to tor control spec. On success, an array containing lines
- * of the response will be returned. On failure, null will be returned.
+ * of the response will be returned. On failure, http_fail will be called.
  */
 function get_response_lines() {
 	global $tc;
 	$response_lines = array ();
 	$index = 0;
 	$state = 0;
-	if (($response_chunk = fread ( $tc, tc_max_response_chunk_length )) === null)
-		return null;
+	if (($response_chunk = fread ( $tc, tc_max_response_chunk_length ))
+			=== null)
+		http_fail ();
 	if ($response_chunk === '')
 		return $response_lines;
 	while ( 1 ) {
 		while ( substr ( $response_chunk, - 2 ) !== "\r\n" ) {
 			if (($response_chunk_1 = fread ( $tc, tc_max_response_chunk_length
 					)) === null)
-				return null;
+				http_fail ();
 			$response_chunk .= $response_chunk_1;
 		}
 		$response_chunk_lines
@@ -3229,23 +3256,21 @@ function get_response_lines() {
 		$response_chunk = '';
 
 		switch ($state) {
-			case 0 : // not started
+			case 0 : // waiting for <error code> " "
 			case0:
 				if (! isset ( $response_lines [$index] ))
 					return $response_lines;
 				$line = $response_lines [$index ++];
 				if (! isset ( $line [3] )) // If tor control port is behaving as
 						// expected, this shouldn't occur.
-					goto case0;
+					http_fail ();
 				if ($line [3] === ' ')
 					goto case0;
-				$error_code_space = substr ( $line, 0, 3 ) . ' ';
 				if ($line [3] === '+') {
 					$state = 1;
 					goto case1;
 				}
-				$state = 2;
-				goto case2;
+				goto case0;
 
 			case 1 : // waiting for a line of "."
 			case1:
@@ -3257,29 +3282,33 @@ function get_response_lines() {
 					goto case0;
 				}
 				goto case1;
-
-			case 2 : // waiting for a line of <error code>" "
-			case2:
-				if (! isset ( $response_lines [$index] ))
-					break;
-				$line = $response_lines [$index ++];
-				if (substr ( $line, 0, 4 ) === $error_code_space) {
-					$state = 0;
-					goto case0;
-				}
-				goto case2;
 		}
 	}
 }
 
-function exec_command_lines($command) {
+/**
+ * This function executes a command and doesn't read the response. On failure,
+ * http_fail will be called.
+ */
+function exec_command_no_response($command) {
 	global $tc;
-	fwrite($tc,"$command\r\n");
-	return get_response_lines();
+	if (fwrite ( $tc, "$command\r\n" ) === false)
+		http_fail ();
 }
 
 /**
- * This function parses the response for getinfo.
+ * This function executes a command. On success, it returns the response. On
+ * failure, http_fail will be called.
+ */
+function exec_command_lines($command) {
+	global $tc;
+	exec_command_no_response ( $command );
+	return get_response_lines ();
+}
+
+/**
+ * This function parses the response for getinfo. It returns the
+ * value.
  */
 function parse_getinfo($name) {
 	$response_lines = exec_command_lines ( "getinfo $name" );
@@ -3307,12 +3336,13 @@ function parse_getinfo($name) {
 }
 
 /**
- * This function parses the response for getinfo.
- * It returns an array. Each item is of getinfo_value type.
+ * This function parses the response for getinfo. It returns an array. Each item
+ * is of getinfo_value type.
  */
 function parse_getinfo_array($names) {
 	$response_lines
 			= exec_command_lines ( 'getinfo ' . implode ( ' ', $names ) );
+	
 	$name_index = 0;
 	$line_index = 0;
 	$getinfo_values = array ();
@@ -3556,8 +3586,9 @@ function parse_dir_v1($line) {
 			break;
 		case 'published' :
 			$a = explode ( ' ', $line_1 );
-			if (! isset ( $a [1] ))
-				$a [1] = '';
+			for($b = 0; $b < 2; $b ++)
+				if (! isset ( $a [$b] ))
+					$a [$b] = '';
 			$parse_dir_data [3] = "$a[0] $a[1]";
 			break;
 		case 'signing-key' :
@@ -3568,8 +3599,8 @@ function parse_dir_v1($line) {
 }
 
 /**
- * This function parses 1 line of response of "getinfo status/circuit-status".
- * It outputs 1 line of the following:
+ * This function parses 1 line of response of "getinfo circuit-status".
+ * It returns 1 line of the following:
  * 	id
  * 	status
  * 	build flag
@@ -3597,29 +3628,29 @@ function output_circuit_status($line) {
 			'SOCKS_PASSWORD' => 11
 	);
 	$a = explode ( ' ', $line );
+	if (! isset ( $a [0] ))
+		http_fail ();
 	if (! isset ( $a [1] ))
 		$a [1] = '';
-	$output_data = array (
+	$output_array = array (
 			0 => $a [0],
 			1 => $a [1]
 	);
 	if (isset ( $a [2] )) {
-		$output_data [5] = $a [2];
+		$output_array [5] = $a [2];
 		for($b = 3; isset ( $a [$b] ); $b ++) {
 			$c = $a [$b];
 			$d = strpos ( $c, '=' );
 			$e = substr ( $c, 0, $d );
 			if (isset ( $name_to_col [$e] ))
-				$output_data [$name_to_col [$e]] = substr ( $c, $d + 1 );
+				$output_array [$name_to_col [$e]] = substr ( $c, $d + 1 );
 		}
 	}
-	for($b = 0; $b < 12; $b ++) {
-		if (isset ( $output_data [$b] ))
-			echo $output_data [$b], ' ';
-		else
-			echo ' ';
-	}
-	echo "\n";
+	$return_str = '';
+	for($b = 0; $b < 12; $b ++)
+		$return_str
+				.= isset ( $output_array [$b] ) ? "{$output_array[$b]} " : ' ';
+	return $return_str;
 }
 
 function custom_command_function() {
@@ -3627,15 +3658,47 @@ function custom_command_function() {
 	 * The output is lines of response seperated by "\n".
 	 */
 	header ( 'Content-type: text/plain' );
-
 	if (isset ( $_POST ['custom_command_command'] )) {
-		echo implode ( "\n",
-				exec_command_lines ( $_POST ['custom_command_command'] ) ),
-				"\n";
+		$response_lines = exec_command_lines ( $_POST ['custom_command_command'] );
+		foreach ( $response_lines as $line )
+			echo $line, "\n";
 	}
 
 	close_tc ();
 	exit ();
+}
+
+/**
+ * This function sets the configuration for starting the session again.
+ */
+function session_restart_configure() {
+	ini_set ( 'session.use_only_cookies', false );
+	ini_set ( 'session.use_cookies', false );
+	ini_set ( 'session.use_trans_sid', false );
+	ini_set ( 'session.cache_limiter', null );
+}
+
+/**
+ * This function gets asynchronous events. It returns the events in an array.
+ */
+function get_events() {
+	global $now;
+	$events = array ();
+	$response_lines = get_response_lines ();
+	$now = ( int ) (microtime ( 1 ) * 1000000);
+	foreach ( $response_lines as $line ) {
+		if (substr ( $line, 0, 3 ) === '650') {
+			$events [] = new event_cache_t ( $now, substr ( $line, 3 ) );
+		}
+	}
+	return $events;
+}
+
+/**
+ * This function outputs an event.
+ */
+function output_event($event) {
+	echo ( int ) ($event->time / 1000), $event->line, "\n";
 }
 
 function update_status_function() {
@@ -3694,11 +3757,13 @@ function update_status_function() {
 	 * Line breaks are "\n".
 	 */
 
-	global $tor_version_string, $tc, $event_names_string;
+	global $tor_version_string, $tc, $event_names_string, $now;
+
+	$output_lines = array ();
 
 	header ( 'Content-type: text/plain' );
 
-	echo $tor_version_string, "\n";
+	$output_lines [] = $tor_version_string;
 
 	$getinfo_values = parse_getinfo_array ( array (
 			'network-liveness',
@@ -3717,28 +3782,31 @@ function update_status_function() {
 	// status/enough-dir-info, status/good-server-descriptior,
 	// status/accepted-server-descriptor, and status/reachability-succeeded
 	for($index = 0; $index < 7; $index ++)
-		echo $getinfo_values [$index]->lines [0], "\n";
-
+		$output_lines [] = $getinfo_values [$index]->lines [0];
+		
 	// for stream-status
-	echo $getinfo_values [7]->num, "\n";
+	$output_lines [] = $getinfo_values [7]->num;
 	foreach ( $getinfo_values [7]->lines as $line )
-		echo $line, " \n";
-
+		$output_lines [] = "$line ";
+		
 	// for orconn-status
-	echo $getinfo_values [8]->num, "\n";
+	$output_lines [] = $getinfo_values [8]->num;
 	foreach ( $getinfo_values [8]->lines as $line ) {
 		$a = explode ( ' ', $line );
-		echo $a [1], ' ', $a [0], " \n";
+		for($b = 0; $b < 2; $b ++)
+			if (! isset ( $a [$b] ))
+				$a [$b] = '';
+		$output_lines [] = "$a[1] $a[0] ";
 	}
 
 	// for circuit-status
-	echo $getinfo_values [9]->num, "\n";
+	$output_lines [] = $getinfo_values [9]->num;
 	foreach ( $getinfo_values [9]->lines as $line )
-		output_circuit_status ( $line );
+		$output_lines [] = output_circuit_status ( $line );
 
 	// for ns/all
 	$num = 0;
-	$output_lines = array ();
+	$output_lines_ns = array ();
 	if (compare_version ( array (
 			0,
 			1,
@@ -3750,11 +3818,11 @@ function update_status_function() {
 		if ($getinfo_values->num) {
 			foreach ( $getinfo_values->lines as $line ) {
 				if ($result = parse_dir ( $line )) {
-					$output_lines [] = $result;
+					$output_lines_ns [] = $result;
 					$num ++;
 				}
 			}
-			$output_lines [] = output_parse_dir ();
+			$output_lines_ns [] = output_parse_dir ();
 			$num ++;
 		}
 	} else // v1 directory style
@@ -3763,82 +3831,116 @@ function update_status_function() {
 		if ($getinfo_values->num) {
 			foreach ( $getinfo_values->lines as $line ) {
 				if ($result = parse_dir_v1 ( $line )) {
-					$output_lines [] = $result;
+					$output_lines_ns [] = $result;
 					$num ++;
 				}
 			}
-			$output_lines [] = output_parse_dir ();
+			$output_lines_ns [] = output_parse_dir ();
 			$num ++;
 		}
 	}
-	echo $num, "\n";
-	foreach ( $output_lines as $line ) {
-		echo $line, "\n";
-	}
-
+	$output_lines [] = $num;
+	foreach ( $output_lines_ns as $line )
+		$output_lines [] = $line;
+		
 	// for asynchronous events
-	$response_lines = exec_command_lines ( "setevents $event_names_string" );
-	$now = ( int ) (microtime ( 1 ) * 1000);
+	exec_command_no_response ( "setevents $event_names_string" );
+	stream_set_blocking ( $tc, 0 );
+	$now = ( int ) (microtime ( 1 ) * 1000000);
+		
+	// to wait for asynchronous
+	$time_check = $now + update_status_initial_wait;
+	$event_cache = array ();
+	while ( $now < $time_check )
+		foreach ( get_events () as $event )
+			$event_cache [] = $event;
 
-	// $time_check is the time to check for another instance of this script
-	// capturing asynchronous events
-	$time_check = $now + update_status_check_interval;
-
+	session_restart_configure ();
+	session_start ();
+	$serial = ($_SESSION ['php_tor_controller_last_event_capture'] + 1)
+			& 0xffff;
+	$_SESSION ['php_tor_controller_last_event_capture'] = $serial;
+	$_SESSION ['php_tor_controller_last_event_capture_time'] = $now;
+	$_SESSION ['php_tor_controller_last_event_capture_events'] = $event_cache;
+	session_write_close ();
 	$event_cache = array ();
 
-	ini_set ( 'session.use_only_cookies', false );
-	ini_set ( 'session.use_cookies', false );
-	ini_set ( 'session.use_trans_sid', false );
-	ini_set ( 'session.cache_limiter', null );
-	session_start ();
-	$last_capture = ($_SESSION ['php_tor_controller_last_event_capture'] + 1)
-			& 0xffff;
-	$_SESSION ['php_tor_controller_last_event_capture'] = $last_capture;
-	$_SESSION ['php_tor_controller_last_event_capture_time'] = $now;
-	session_write_close ();
-
-	stream_set_blocking ( $tc, 0 );
-
 	while ( 1 ) {
-		// to output and clear cached events
-		foreach ( $event_cache as $event ) {
-			echo $event->time, $event->line, "\n";
-		}
-		$event_cache = array ();
-
-		while ( $now < $time_check ) {
-			foreach ( $response_lines as $line ) {
-				if (substr ( $line, 0, 3 ) === '650')
-					$event_cache [] = new event_cache_type ( $now,
-							substr ( $line, 3 ) );
-			}
-			$response_lines = get_response_lines();
-			$now = ( int ) (microtime ( 1 ) * 1000);
-		}
-
-		$time_check+=update_status_check_interval;
-
+		$time_check += update_status_check_interval;
+		while ( $now < $time_check )
+			foreach ( get_events () as $event )
+				$event_cache [] = $event;
+			
 		// to check for another instance of this script capturing asynchronous
 		// events
 		session_start ();
 		if ($_SESSION ['php_tor_controller_last_event_capture']
-				!= $last_capture) {
-			$last_capture_time
-					= $_SESSION ['php_tor_controller_last_event_capture_time'];
-			session_write_close ();
+				!= $serial) {
 			stream_set_blocking ( $tc, 1 );
 			close_tc ();
-			foreach ( $event_cache as $event ) {
-				if ($event->time >= $last_capture_time)
-					exit ();
-				echo $event->time, $event->line, "\n";
+			
+			$last_capture_time
+					= $_SESSION ['php_tor_controller_last_event_capture_time'];
+			$last_capture_events = $_SESSION
+					['php_tor_controller_last_event_capture_events'];
+			session_write_close ();
+			
+			// all the output
+			foreach ( $output_lines as $line )
+				echo $line, "\n";
+			
+			/*
+			 * If $_SESSION['php_tor_controller_last_event_capture_events'] is
+			 * empty or it matches no part of $event_cache, all events that are
+			 * received earlier than
+			 * $_SESSION['php_tor_controller_last_event_capture_time'] will be
+			 * sent. Otherwise, all events received earlier than the part that
+			 * match and the part that match are sent.
+			 */
+			$num = count ( $last_capture_events );
+			if ($num) {
+				$a = 0;
+				$last_pos = count ( $event_cache )-1;
+				$latest = $last_capture_events [$num - 1]->time
+						+ event_received_time_difference;
+				while ( $last_pos > $a ) {
+					$c = ($a + $last_pos) >> 1;
+					if ($event_cache [$c]->time > $latest)
+						$last_pos = $c-1;
+					else
+						$a = $c+1;
+				}
+				for($last_pos ++; $last_pos >= $num; $last_pos --) {
+					$start_pos = $last_pos - $num;
+					$a = $num;
+					while ( 1 ) {
+						$eventa = $last_capture_events [-- $a];
+						$eventb = $event_cache [$a + $start_pos];
+						if ($eventa->time - event_received_time_difference
+								> $eventb->time)
+							goto events_no_match;
+						if (($eventa->line !== $eventb->line)
+								|| ($eventa->time
+										+ event_received_time_difference
+										< $eventb->time))
+							break;
+						if (! $a) // a match is found
+						{
+							for($a = 0; $a < $last_pos; $a ++)
+								output_event ( $event_cache [$a] );
+							exit ();
+						}
+					}
+				}
+			} else
+			events_no_match:
+			{
+				for($a = 0; isset ( $event_cache [$a] )
+						&& $event_cache [$a]->time < $last_capture_time; $a ++)
+					output_event ( $event_cache [$a] );
 			}
 			exit ();
 		}
-		$last_capture = ($_SESSION ['php_tor_controller_last_event_capture']
-				+ 1) & 0xffff;
-		$_SESSION ['php_tor_controller_last_event_capture'] = $last_capture;
-		$_SESSION ['php_tor_controller_last_event_capture_time'] = $now;
 		session_write_close ();
 	}
 }
@@ -3872,8 +3974,8 @@ function geoip_alt($ip) {
 		return $country_code;
 	if (filter_var ( $ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4 )) {
 		if (! $geoiplookup_command_available) {
-			$geoiplookup_command_available
-					= shell_exec ( 'geoiplookup 8.8.8.8' ) ? 1 : 2;
+			system ( 'geoiplookup -h', $exit );
+			$geoiplookup_command_available = $exit < 127 ? 1 : 2;
 		}
 		if ($geoiplookup_command_available == 1) {
 			$geoip_output = shell_exec ( "geoiplookup $ip" );
@@ -3884,9 +3986,8 @@ function geoip_alt($ip) {
 		}
 	} else {
 		if (! $geoiplookup6_command_available) {
-			$geoiplookup6_command_available
-					= shell_exec ( 'geoiplookup6 2001:4860:4860::8888' )
-					? 1 : 2;
+			system ( 'geoiplookup6 -h', $exit );
+			$geoiplookup6_command_available = $exit < 127 ? 1 : 2;
 		}
 		if ($geoiplookup6_command_available == 1) {
 			$geoip_output = shell_exec ( "geoiplookup6 $ip" );
@@ -4240,7 +4341,8 @@ if ($tc) {
 			$command = 'authenticate';
 	}
 	if ($auth_success) {
-		if (($response_lines = exec_command_lines ( $command )) [0] == "250 OK")
+		$response_lines = exec_command_lines ( $command );
+		if (isset ( $response_lines [0] ) && ($response_lines [0] == '250 OK'))
 		{
 			// to get the current version and event names
 			$getinfo_values = parse_getinfo_array ( array (
@@ -4331,7 +4433,7 @@ if ($tc) {
 			) )) {
 				foreach ( exec_command_lines ( 'getinfo config/defaults' )
 						as $line ) {
-					if ($line [0] == '.')
+					if ($line === '.')
 						break;
 					$a = strpos ( $line, ' ' );
 					$name = substr ( $line, 0, $a );
