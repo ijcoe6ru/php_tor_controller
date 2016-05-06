@@ -4095,6 +4095,9 @@ function get_bandwidth_history_function() {
 	 * Each line represents 1 second. They are in chronological order.
 	 * Line breaks are "\n".
 	 */
+
+	header ( 'Content-type: text/plain' );
+
 	if (compare_version ( array (
 			0,
 			2,
