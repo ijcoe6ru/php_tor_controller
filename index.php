@@ -3236,16 +3236,16 @@ function get_response_lines() {
 	$response_lines = array ();
 	$index = 0;
 	$state = 0;
-	if (($response_chunk = fread ( $tc, tc_max_response_chunk_length ))
+	if (($response_chunk = @fread ( $tc, tc_max_response_chunk_length ))
 			=== null)
-		http_fail ();
+		http_fail ( 'Error reading from Tor control port' );
 	if ($response_chunk === '')
 		return $response_lines;
 	while ( 1 ) {
 		while ( substr ( $response_chunk, - 2 ) !== "\r\n" ) {
-			if (($response_chunk_1 = fread ( $tc, tc_max_response_chunk_length
+			if (($response_chunk_1 = @fread ( $tc, tc_max_response_chunk_length
 					)) === null)
-				http_fail ();
+				http_fail ( 'Error reading from Tor control port' );
 			$response_chunk .= $response_chunk_1;
 		}
 		$response_chunk_lines
@@ -3256,21 +3256,23 @@ function get_response_lines() {
 		$response_chunk = '';
 
 		switch ($state) {
-			case 0 : // waiting for <error code> " "
+			case 0 : // waiting for start of new response
 			case0:
 				if (! isset ( $response_lines [$index] ))
 					return $response_lines;
 				$line = $response_lines [$index ++];
 				if (! isset ( $line [3] )) // If tor control port is behaving as
 						// expected, this shouldn't occur.
-					http_fail ();
+					http_fail ( 'Invalid response read from Tor control port: '
+							. htmlspecialchars ( $line ) );
 				if ($line [3] === ' ')
 					goto case0;
 				if ($line [3] === '+') {
 					$state = 1;
 					goto case1;
 				}
-				goto case0;
+				$state = 2;
+				goto case2;
 
 			case 1 : // waiting for a line of "."
 			case1:
@@ -3282,6 +3284,25 @@ function get_response_lines() {
 					goto case0;
 				}
 				goto case1;
+			
+			case 2: //waiting for <error code> " "
+			case2:
+				if (! isset ( $response_lines [$index] ))
+					break;
+				$line = $response_lines [$index ++];
+				if (! isset ( $line [3] )) // If tor control port is behaving as
+						// expected, this shouldn't occur.
+					http_fail ( 'Invalid response read from Tor control port: '
+							. htmlspecialchars ( $line ) );
+				if ($line [3] === ' ') {
+					$state = 0;
+					goto case0;
+				}
+				if ($line [3] === '+') {
+					$state = 1;
+					goto case1;
+				}
+				goto case2;
 		}
 	}
 }
