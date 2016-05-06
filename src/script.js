@@ -1178,20 +1178,20 @@ function update_status_handler(data) {
 										.substr(e, f - e);
 								new_element_1_jquery = $('<td></td>');
 								h = 0;
-								while ((i = ipv6_addr_list.indexOf(';', 'h'))
+								while ((i = ipv6_addr_list.indexOf(';', h))
 										!= -1) {
 									var new_element_3, new_element_3_jquery;
-									if (ipv6_addr_list[h] == '[')
-										ip_addr = ipv6_addr_list.substr(h + 1,
-												ipv6_addr_list.indexOf(']',
-														h + 1)
-														- h - 1);
+									ip_addr_port = ipv6_addr_list.substr(h, i
+											- h);
+									if (ip_addr_port[0] == '[')
+										ip_addr = ip_addr_port
+												.substr(1, ip_addr_port
+														.indexOf(']', 1) - 1);
 									else
-										ip_addr = ipv6_addr_list.substr(h, i
-												- h);
+										ip_addr = ip_addr_port;
 									new_element_3_jquery = $('<div></div>');
 									new_element_3 = new_element_3_jquery[0];
-									new_element_3.textContent = ip_addr;
+									new_element_3.textContent = ip_addr_port;
 									new_element_2 = $('<span></span>')[0];
 									new_element_3_jquery.append(new_element_2);
 
