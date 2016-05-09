@@ -4807,11 +4807,13 @@ messages_data_size=<?=messages_data_size?>;
 			onchange="change_bandwidth_shown_type();">
 			<option value="0">total</option>
 		</select>
-		<input type="number" value="10" step="1" min="1" id="bandwidth_graph_px_per_s"
+		<input type="number" value="10" step="1" min="1"
+			id="bandwidth_graph_px_per_s"
 			onchange="change_bandwidth_graph_speed();">
 		<label for="bandwidth_graph_px_per_sec">pixles per second</label>
 		<br>
-		<svg id="bandwidth_graph" viewBox="0 0 712 436">
+		<svg id="bandwidth_graph" xmlns="http://www.w3.org/2000/svg"
+			viewBox="0 0 712 436">
 			<line x1="90" x2="690" y1="50" y2="50"
 				class="bandwidth_graph_reference_line" />
 			<line x1="90" x2="690" y1="125" y2="125"
