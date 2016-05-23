@@ -897,6 +897,7 @@ function update_status_handler(data) {
 					num = Number(line = data_from_server_list.data.substr(
 							last_line, current_line - last_line));
 					if (isNaN(num)) {
+						data_from_server_list = data_from_server_list.next;
 						update_status_handle_running = 0;
 						console
 								.log(
@@ -964,6 +965,7 @@ function update_status_handler(data) {
 					num = Number(line = data_from_server_list.data.substr(
 							last_line, current_line - last_line));
 					if (isNaN(num)) {
+						data_from_server_list = data_from_server_list.next;
 						update_status_handle_running = 0;
 						console
 								.log(
@@ -1070,6 +1072,7 @@ function update_status_handler(data) {
 					num = Number(line = data_from_server_list.data.substr(
 							last_line, current_line - last_line));
 					if (isNaN(num)) {
+						data_from_server_list = data_from_server_list.next;
 						update_status_handle_running = 0;
 						console
 								.log(
